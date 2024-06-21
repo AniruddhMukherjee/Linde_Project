@@ -70,9 +70,9 @@ if selected == "Report":
 
 
    if selected_project:
-       st.success(f"Reports for project : {selected_project}")
+       st.subheader(f"Reports for project : {selected_project}")
    else:
-       st.header("Select Project")
+       st.warning("Select Project")
 
 
 

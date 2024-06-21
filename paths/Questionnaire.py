@@ -58,7 +58,7 @@ def input_questionnaire_data(categories, questionnaire_path):
         # User inputs
         title = st.text_input("Title")
         category = st.selectbox("Category", categories)
-        user_name = st.text_input("User Name")
+        user_name = st.text_input("By User")
         description = st.text_area("Description")
         start_date = st.date_input('Start Date', value=date.today())
 
@@ -76,7 +76,7 @@ def input_questionnaire_data(categories, questionnaire_path):
         # Save the questionnaire data on submit
         if submit:
             to_add = {"name": [title], "category": [category], "user": [user_name],
-                      "description": [description], "start_date": [start_date]}
+                      "description": [description], "Date": [Date]}
             to_add = pd.DataFrame(to_add)
 
             # Check if the questionnaire already exists
