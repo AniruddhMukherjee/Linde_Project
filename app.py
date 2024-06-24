@@ -14,6 +14,7 @@ import paths.Categories as categories_page
 import paths.Projects as project_page
 import paths.Documents as documents_page
 import paths.Questionnaire as questionnaire_page
+import paths.reports as reports_page
 
 
 # set page config wide
@@ -33,9 +34,6 @@ selected = option_menu(
 data = pd.read_csv("Data.csv")
 file_uploads = pd.read_csv("project_paths.csv")
 
-
-
-
 def main():
 
     if selected == "Category":
@@ -50,37 +48,9 @@ def main():
     if selected == "Questionnaire":
         questionnaire_page.Questionnaire_page()
 
+    if selected == "Report":
+        reports_page.Reports_page()
 
 
 if __name__ == "__main__":
     main()
-
-
-
-###################################################
-########### THE MAIN REPORTS GEN. PAGE ############
-###################################################
-
-
-# main report page
-if selected == "Report":
-   st.title("Reports Page")
-   # The selected project from the dropdown
-   selected_project = st.session_state.get("selected_project", None)
-
-
-   if selected_project:
-       st.subheader(f"Reports for project : {selected_project}")
-   else:
-       st.warning("Select Project")
-
-
-
-
-
-
-
-
-
-
-

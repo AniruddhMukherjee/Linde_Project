@@ -138,27 +138,33 @@ def Table_data():
         st.write("")
 
     with col3:
-        # Check if the warning has been shown
-        warning_shown = st.session_state.get("delete_warning_shown", False)
+        #dialog_placeholder = st.empty()
 
-        if not warning_shown:
-            # Show the warning
-            if st.button("Delete Project"):
-                proceed = st.warning(f"Are you sure you want to delete the project '{selected_project_name}'?", icon="⚠️")
-                if proceed:
-                    # Update the state variable to indicate that the warning has been shown
-                    st.session_state["delete_warning_shown"] = True
-        else:
-            # Proceed with deletion
-            if st.button("Delete Project"):
-                if selected_project_name:
+        if "delete_dialog_open" not in st.session_state:
+            st.session_state.delete_dialog_open = False
+
+        if st.button("Delete Project"):
+            if selected_project_name:
+                st.session_state.delete_dialog_open = True
+            else:
+                st.warning("Please select a project to delete.")
+
+        if st.session_state.delete_dialog_open:
+            @st.experimental_dialog("Delete Project")
+            def delete_project_dialog():
+                st.write(f"Are you sure you want to delete the project '{selected_project_name}'?")
+                col1, col2 = st.columns(2)
+                if col1.button("Cancel"):
+                    st.session_state.delete_dialog_open = False
+                    st.rerun()
+                if col2.button("Delete"):
                     delete_project(selected_project_name)
+                    st.success(f"Project '{selected_project_name}' has been deleted.")
+                    st.session_state.selected_project = None
+                    st.session_state.delete_dialog_open = False
+                    st.rerun()
 
-                    # Reset the selected project after deletion
-                    st.session_state["selected_project"] = None
-                    st.session_state["delete_warning_shown"] = False
-                else:
-                    st.warning("No project is currently selected.")
+            delete_project_dialog()
 
 def projects_page():
     st.title("Projects")

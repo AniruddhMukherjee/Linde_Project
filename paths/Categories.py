@@ -3,7 +3,6 @@ import streamlit as st
 import os
 from st_aggrid import AgGrid, GridUpdateMode, DataReturnMode, GridOptionsBuilder
 
-
 categories_file = "categories.csv"
 categories_path = os.path.join(os.getcwd(), categories_file)
 
@@ -47,14 +46,26 @@ def display_categories(categories_df):
     with col2:
         if st.button("Delete Category"):
             if selected_rows is not None and not selected_rows.empty:
-                selected_categories = [row["Categories"] for _, row in selected_rows.iterrows()]
-                updated_df = updated_df[~updated_df["Categories"].isin(selected_categories)]
-                updated_df.to_csv(categories_path, index=False)
-                st.success("Categories deleted successfully!")
+                st.session_state.delete_dialog_open = True
             else:
                 st.warning("No category is currently selected.")
 
-    return updated_df
+        if st.session_state.delete_dialog_open:
+            @st.experimental_dialog("Delete Category")
+            def delete_category_dialog(updated_df):
+                st.write(f"Are you sure you want to delete the selected categories?")
+                col1, col2 = st.columns(2)
+                if col1.button("Cancel"):
+                    st.session_state.delete_dialog_open = False
+                    st.rerun()
+                if col2.button("Delete"):
+                    updated_df = updated_df[~updated_df["Categories"].isin([row["Categories"] for _, row in selected_rows.iterrows()])]
+                    updated_df.to_csv(categories_path, index=False)
+                    st.success("Categories deleted successfully!")
+                    st.session_state.delete_dialog_open = False
+                    st.rerun()
+
+            delete_category_dialog(updated_df)
 
 # main categories page
 def Categories_page():

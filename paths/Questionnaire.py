@@ -60,7 +60,7 @@ def input_questionnaire_data(categories, questionnaire_path):
         category = st.selectbox("Category", categories)
         user_name = st.text_input("By User")
         description = st.text_area("Description")
-        start_date = st.date_input('Start Date', value=date.today())
+        Date = st.date_input('Start Date', value=date.today())
 
         # Allow file upload for questions
         uploaded_files = st.file_uploader("Upload Questions", type=["xlsx", "csv"], accept_multiple_files=True)
