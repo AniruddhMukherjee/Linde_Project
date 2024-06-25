@@ -8,13 +8,24 @@ categories_path = os.path.join(os.getcwd(), categories_file)
 
 # Adds the category to the file
 def add_category():
-    new_category = st.text_input("Add a new category")
-    if new_category and st.button("Add Category"):
-        categories_df = pd.read_csv(categories_path)
-        new_row = pd.DataFrame({"Categories": [new_category]})
-        updated_categories = pd.concat([categories_df, new_row], ignore_index=True)
-        updated_categories.to_csv(categories_path, index=False)
-        st.success(f"Category '{new_category}' added successfully!")
+    with st.expander("Add a new category"):
+        new_category = st.text_input("Click enter to add categories")
+        if new_category and st.button("Add Category"):
+            categories_df = pd.read_csv(categories_path)
+            new_row = pd.DataFrame({"Categories": [new_category]})
+            updated_categories = pd.concat([categories_df, new_row], ignore_index=True)
+            updated_categories.to_csv(categories_path, index=False)
+            st.success(f"Category '{new_category}' added successfully!")
+            st.rerun()
+
+def table_size(categories_df):
+    # Calculate the height based on the number of rows
+    row_height = 35  # Approximate height of each row in pixels
+    header_height = 40  # Approximate height of the header in pixels
+    min_height = 50  # Minimum height of the grid
+    max_height = 600  # Maximum height of the grid
+    calculated_height = min(max(min_height, len(categories_df) * row_height + header_height), max_height)
+    return calculated_height
 
 # Displays the categories
 def display_categories(categories_df):
@@ -31,7 +42,8 @@ def display_categories(categories_df):
         update_mode=GridUpdateMode.MODEL_CHANGED,
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
         fit_columns_on_grid_load=True,
-        enable_enterprise_modules=False
+        enable_enterprise_modules=False,
+        height=table_size(categories_df)
     )
 
     updated_data = ag_response["data"]
@@ -76,4 +88,5 @@ def Categories_page():
         pd.DataFrame(columns=["Categories"]).to_csv(categories_path, index=False)
 
     categories_df = pd.read_csv(categories_path)
+    #st.write(categories_df)
     display_categories(categories_df)

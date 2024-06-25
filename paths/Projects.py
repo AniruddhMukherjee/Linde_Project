@@ -86,6 +86,15 @@ def enter_values():
     if show_content:
         create_form()
 
+def table_size(data):
+    # Calculate the height based on the number of rows
+    row_height = 35  # Approximate height of each row in pixels
+    header_height = 40  # Approximate height of the header in pixels
+    min_height = 50  # Minimum height of the grid
+    max_height = 600  # Maximum height of the grid
+    calculated_height = min(max(min_height, len(data) * row_height + header_height), max_height)
+    return calculated_height
+
 def Table_data():
     global data
     data = pd.read_csv("Data.csv")
@@ -105,7 +114,8 @@ def Table_data():
         update_mode=GridUpdateMode.MODEL_CHANGED,
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
         fit_columns_on_grid_load=True,
-        enable_enterprise_modules=False
+        enable_enterprise_modules=False,
+        height=table_size(data),
     )
     updated_data = ag_response["data"]
     updated_df = pd.DataFrame(updated_data)

@@ -156,6 +156,15 @@ def add_questions_manually(questionnaire_path, selected_questionnaire):
         else:
             st.warning("No new questions entered.")
 
+def table_size(questionnaire_path):
+    # Calculate the height based on the number of rows
+    questionnaire_df = pd.read_csv(questionnaire_path)
+    row_height = 35  # Approximate height of each row in pixels
+    header_height = 40  # Approximate height of the header in pixels
+    min_height = 35  # Minimum height of the grid
+    max_height = 400  # Maximum height of the grid
+    calculated_height = min(max(min_height, len(questionnaire_df) * row_height + header_height), max_height)
+    return calculated_height
 
 def show_questionnaires(questionnaire_path, categories):
     questionnaire_data = pd.read_csv(questionnaire_path)
@@ -178,6 +187,7 @@ def show_questionnaires(questionnaire_path, categories):
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
         enable_enterprise_modules=False,
         onGridReady=lambda params: (params.api.onSelectionChanged, lambda: setattr(st.session_state, 'selected_row_data', params.api.getSelectedRows())),
+        height=table_size(questionnaire_path)
     )
     updated_data = ag_response['data']
     selected_rows = ag_response["selected_rows"]
@@ -191,16 +201,36 @@ def show_questionnaires(questionnaire_path, categories):
             with col1:
                 if st.button("Save Changes"):
                     update_questionnaire_data(updated_data, questionnaire_path)
+            
             with col2:
+                if "delete_questionnaire_open" not in st.session_state:
+                    st.session_state.delete_questionnaire_open = False
+
                 if st.button("Delete Questionnaire"):
                     if selected_rows is not None and not selected_rows.empty:
                         selected_questionnaire_name = selected_rows.iloc[0]["name"]
-                        if st.warning(f"You are about to delete the questionnaire '{selected_questionnaire_name}'. Are you sure?", icon="⚠️"):
+                        st.session_state.delete_questionnaire_open = True
+                    else:
+                        st.warning("No questionnaire is currently selected.")
+
+                if st.session_state.delete_questionnaire_open:
+                    @st.experimental_dialog("Delete Questionnaire")
+                    def delete_questionnaire_dialog(updated_data):
+                        st.write(f"Are you sure you want to delete the questionnaire '{selected_questionnaire_name}'?")
+                        col1, col2 = st.columns(2)
+                        if col1.button("Cancel"):
+                            st.session_state.delete_questionnaire_open = False
+                            st.rerun()
+                        if col2.button("Delete"):
+                            current_data = pd.read_csv(questionnaire_path)
                             updated_data = updated_data[updated_data['name'] != selected_questionnaire_name]
                             update_questionnaire_data(updated_data, questionnaire_path)
                             delete_questionnaire(questionnaire_data, selected_questionnaire_name, questionnaire_path)
-                    else:
-                        st.warning("No questionnaire is currently selected.")
+                            st.success(f"Questionnaire '{selected_questionnaire_name}' has been deleted.")
+                            st.session_state.delete_questionnaire_open = False
+                            st.rerun()
+
+                    delete_questionnaire_dialog(updated_data)
 
 
             #with st.expander("Manage Questions"):

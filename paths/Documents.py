@@ -35,7 +35,7 @@ def input_data(categories, project_file_path):
         summary = st.text_area("Summary")
 
         # Multi-select dropdown for categories
-        selected_categories = st.multiselect("Category", categories)
+        selected_categories = st.selectbox("Category", categories)
 
         date = st.date_input('Date')
         version = st.text_input("Version")
@@ -53,7 +53,7 @@ def input_data(categories, project_file_path):
                     st.warning(f"The file '{file_name}' has already been uploaded. Please choose a different file.")
                 else:
                     to_add = {"fileID": [file_name], "Title": [title], "Summary": [summary],
-                              "Category": [', '.join(selected_categories)], "Date": [date], "Version": [version]}
+                              "Category": [selected_categories], "Date": [date], "Version": [version]}
                     to_add = pd.DataFrame(to_add)
 
                     existing_data = pd.read_csv(project_file_path)
@@ -75,6 +75,15 @@ def NewFile(categories, project_file_path):
     if show_content:
         input_data(categories, project_file_path)
 
+def table_size(project_data):
+    # Calculate the height based on the number of rows
+    row_height = 35  # Approximate height of each row in pixels
+    header_height = 40  # Approximate height of the header in pixels
+    min_height = 50  # Minimum height of the grid
+    max_height = 600  # Maximum height of the grid
+    calculated_height = min(max(min_height, len(project_data) * row_height + header_height), max_height)
+    return calculated_height
+
 def show_project_data(selected_project, project_file_path, categories):
     project_data = pd.read_csv(project_file_path)
 
@@ -95,7 +104,8 @@ def show_project_data(selected_project, project_file_path, categories):
         fit_columns_on_grid_load=True,
         update_mode=GridUpdateMode.MODEL_CHANGED,  # Change to MODEL_CHANGED
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        enable_enterprise_modules=False
+        enable_enterprise_modules=False,
+        height=table_size(project_data),
     )
 
     updated_data = ag_response['data']
@@ -120,12 +130,32 @@ def show_project_data(selected_project, project_file_path, categories):
         st.write("")
 
     with col3:
+    #dialog_placeholder = st.empty()
+
+        if "delete_files_dialog_open" not in st.session_state:
+            st.session_state.delete_files_dialog_open = False
+
         if st.button("Delete Files"):
             if selected_rows is not None and not selected_rows.empty:
-                selected_file_names = [row["fileID"] for row in selected_rows.to_dict("records")]
-                delete_files(updated_df, selected_file_names, project_file_path)
+                st.session_state.delete_files_dialog_open = True
             else:
                 st.warning("No files are currently selected.")
+
+        if st.session_state.delete_files_dialog_open:
+            @st.experimental_dialog("Delete Files")
+            def delete_files_dialog():
+                selected_file_names = [row["fileID"] for row in selected_rows.to_dict("records")]
+                st.write(f"Are you sure you want to delete the following files?\n\n{', '.join(selected_file_names)}")
+                col1, col2 = st.columns(2)
+                if col1.button("Cancel"):
+                    st.session_state.delete_files_dialog_open = False
+                    st.rerun()
+                if col2.button("Delete"):
+                    delete_files(updated_df, selected_file_names, project_file_path)
+                    st.success(f"Selected files have been deleted.")
+                    st.session_state.delete_files_dialog_open = False
+                    st.rerun()
+            delete_files_dialog()
 
 def Documents_page():
     st.title("Documents")
