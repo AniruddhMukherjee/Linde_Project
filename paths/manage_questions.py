@@ -1,16 +1,11 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
 import os
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, ColumnsAutoSizeMode
 
-def table_size(questions_df):
-    # Calculate the height based on the number of rows
-    row_height = 35  # Approximate height of each row in pixels
-    header_height = 40  # Approximate height of the header in pixels
-    min_height = 25  # Minimum height of the grid
-    max_height = 400  # Maximum height of the grid
-    calculated_height = min(max(min_height, len(questions_df) * row_height + header_height), max_height)
-    return calculated_height
+def custom_sort_key(index):
+    parts = index.split('.')
+    return [int(part) if part.isdigit() else part for part in parts]
 
 def manage_questions_page(questionnaire_path, selected_questionnaire):
     st.title(f"Manage Questions for '{selected_questionnaire}'")
@@ -18,11 +13,46 @@ def manage_questions_page(questionnaire_path, selected_questionnaire):
     questionnaire_dir = os.path.join("questionnaires", selected_questionnaire.replace(" ", "_"))
     questions_file = os.path.join(questionnaire_dir, f"{selected_questionnaire.replace(' ', '_')}_questions.csv")
 
-    # Load existing questions
+    # Load existing questions or upload new file
     if os.path.exists(questions_file):
         questions_df = pd.read_csv(questions_file)
+        #st.write("Loaded existing CSV file")
     else:
-        questions_df = pd.DataFrame({"Questions": []})
+        st.write("No existing questions file found. Please upload a CSV file.")
+        uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+        if uploaded_file is not None:
+            questions_df = pd.read_csv(uploaded_file)
+            questions_df.to_csv(questions_file, index=False)
+            st.success("CSV file successfully uploaded and saved.")
+        else:
+            st.warning("Please upload a CSV file to continue.")
+            return
+
+    # Ensure the DataFrame has the correct structure
+    if 'index' not in questions_df.columns or 'questions' not in questions_df.columns:
+        # If not, try to restructure it
+        if len(questions_df.columns) == 1:
+            # Split the single column into index and questions
+            questions_df = pd.DataFrame({
+                'index': questions_df.iloc[::2, 0].reset_index(drop=True),
+                'questions': questions_df.iloc[1::2, 0].reset_index(drop=True)
+            })
+            # Save the restructured DataFrame
+            questions_df.to_csv(questions_file, index=False)
+            st.success("CSV file structure corrected and saved.")
+        else:
+            st.error("CSV file structure is incorrect and cannot be automatically fixed.")
+            return
+
+    # Debug information
+    #st.write("DataFrame columns:", questions_df.columns)
+    #st.write("First few rows of the DataFrame:", questions_df.head())
+
+    # Ensure Index column is treated as string
+    questions_df['index'] = questions_df['index'].astype(str)
+
+    # Sort the dataframe by Index
+    questions_df = questions_df.sort_values(by="index", key=lambda x: x.map(custom_sort_key))
 
     # Display existing questions using AgGrid
     gb = GridOptionsBuilder.from_dataframe(questions_df)
@@ -37,34 +67,31 @@ def manage_questions_page(questionnaire_path, selected_questionnaire):
         update_mode=GridUpdateMode.MODEL_CHANGED,
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
         enable_enterprise_modules=False,
-        height=table_size(questions_df)
+        height=table_size(questions_df),
+        columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS  # Add this line
     )
 
     selected_questions = ag_response["selected_rows"]
-    if selected_questions is not None:
-        if not selected_questions.empty:  # Check if selected_questions is not an empty DataFrame
-            pass  # st.write(f"Selected questions: {[row['Questions'] for _, row in selected_questions.iterrows()]}")
 
     ad, dl = st.columns([3, 1])
     add_new_questions(questions_df, questions_file, ad)
     delete_selected_questions(selected_questions, questions_df, questions_file, dl)
 
-
 def add_new_questions(questions_df, questions_file, ad):
-    with ad.expander("Add New Questions"):
-        new_questions = st.text_area("Enter new questions, one per line:")
+    with ad.popover("Add New Questions"):
+        new_index = st.text_input("Enter the index for the new question (e.g., 1.3):")
+        new_question = st.text_area("Enter the new question:")
 
-        if st.button("Add Questions"):
-            if new_questions:
-                new_questions = new_questions.split('\n')
-                new_questions = [q.strip() for q in new_questions if q.strip()]
-                questions_df = pd.concat([questions_df, pd.DataFrame({"Questions": new_questions})], ignore_index=True)
+        if st.button("Add Question"):
+            if new_index and new_question:
+                new_row = pd.DataFrame({"index": [new_index], "questions": [new_question]})
+                questions_df = pd.concat([questions_df, new_row], ignore_index=True)
+                questions_df = questions_df.sort_values(by="index", key=lambda x: x.map(custom_sort_key))
                 questions_df.to_csv(questions_file, index=False)
-                st.success(f"{len(new_questions)} new questions added!")
-                st.rerun()  # Re-run the script to update the table
+                st.success("New question added!")
+                st.rerun()
             else:
-                st.warning("No new questions entered.")
-
+                st.warning("Please enter both an index and a question.")
 
 def delete_selected_questions(selected_questions, questions_df, questions_file, dl):
     with dl:
@@ -97,10 +124,10 @@ def delete_selected_questions(selected_questions, questions_df, questions_file, 
                     try:
                         # Handle different possible formats of selected_questions
                         if isinstance(selected_questions, pd.DataFrame):
-                            questions_to_delete = selected_questions['Questions'].tolist()
+                            questions_to_delete = selected_questions['index'].tolist()
                         elif isinstance(selected_questions, list):
                             if all(isinstance(q, dict) for q in selected_questions):
-                                questions_to_delete = [q['Questions'] for q in selected_questions]
+                                questions_to_delete = [q['index'] for q in selected_questions]
                             elif all(isinstance(q, str) for q in selected_questions):
                                 questions_to_delete = selected_questions
                             else:
@@ -109,7 +136,7 @@ def delete_selected_questions(selected_questions, questions_df, questions_file, 
                             raise ValueError("Unexpected format of selected questions.")
 
                         # Perform deletion
-                        updated_df = questions_df[~questions_df['Questions'].isin(questions_to_delete)]
+                        updated_df = questions_df[~questions_df['index'].isin(questions_to_delete)]
                         updated_df.to_csv(questions_file, index=False)
                         st.success(f"{num_questions} question{'s' if num_questions > 1 else ''} {'have' if num_questions > 1 else 'has'} been deleted.")
                     except Exception as e:
@@ -119,3 +146,11 @@ def delete_selected_questions(selected_questions, questions_df, questions_file, 
                         st.rerun()
 
             delete_questions_dialog()
+
+def table_size(questions_df):
+    row_height = 35
+    header_height = 40
+    min_height = 25
+    max_height = 400
+    calculated_height = min(max(min_height, len(questions_df) * row_height + header_height), max_height)
+    return calculated_height
