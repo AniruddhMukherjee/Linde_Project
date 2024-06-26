@@ -3,6 +3,8 @@ import pandas as pd
 import os
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
+from paths.view_reports import view_reports_page
+
 def questionnaire_table_size(questionnaire_data):
     # Calculate the height based on the number of rows
     row_height = 35  # Approximate height of each row in pixels
@@ -59,6 +61,7 @@ def show_questionnaires(questionnaire_path):
         st.sidebar.write(f"**User:** {selected_questionnaire['user']}")
         st.sidebar.write(f"**Description:** {selected_questionnaire['description']}")
         st.sidebar.write(f"**Date:** {selected_questionnaire['Date']}")
+        st.sidebar.divider()
         
         st.session_state.selected_category = selected_questionnaire['category']
         return selected_questionnaire
@@ -116,29 +119,82 @@ def show_filtered_documents(project_file_path, questionnaire_name):
     selected_docs = ag_response["selected_rows"]
     if isinstance(selected_docs, pd.DataFrame) and not selected_docs.empty:
         st.write("Client documents to assign to the questionnaire:")
-        st.write(selected_docs)
+        st.table(selected_docs)
         
-        if st.button("Assign Documents"):
-            assign_documents(questionnaire_name, selected_docs)
+    return selected_docs
 
-def assign_documents(questionnaire_name, selected_docs):
-    report_name = st.session_state.get('report_name', 'default_report')
-    file_name = f"{report_name}_assigned_documents.csv"
-    
-    assigned_documents = pd.DataFrame({
-        'Questionnaire': [questionnaire_name] * len(selected_docs),
-        'Documents': selected_docs['Title'].tolist()
-    })
-    
-    if os.path.exists(file_name):
-        existing_data = pd.read_csv(file_name)
-        updated_data = pd.concat([existing_data, assigned_documents], ignore_index=True)
+def assign_documents_and_generate_report(questionnaire_name, selected_docs, report_name, selected_project, questionnaire_data):
+    # Create a directory for the report
+    report_dir = f"{selected_project}_{report_name}"
+    os.makedirs(report_dir, exist_ok=True)
+
+    # Assigned documents CSV
+    assigned_file = os.path.join(report_dir, "assigned_documents.csv")
+
+    # Handle different possible formats of selected_docs
+    if isinstance(selected_docs, pd.DataFrame):
+        doc_titles = selected_docs['Title'].tolist()
+    elif isinstance(selected_docs, list) and all(isinstance(doc, dict) for doc in selected_docs):
+        doc_titles = [doc['Title'] for doc in selected_docs]
+    elif isinstance(selected_docs, list) and all(isinstance(doc, str) for doc in selected_docs):
+        doc_titles = selected_docs
     else:
-        updated_data = assigned_documents
+        st.error("Invalid format for selected documents")
+        return None
+
+    assigned_documents = pd.DataFrame({
+        'Project': [selected_project] * len(doc_titles),
+        'Questionnaire': [questionnaire_name] * len(doc_titles),
+        'Documents': doc_titles
+    })
+    assigned_documents.to_csv(assigned_file, index=False)
+
+    # Included documents CSV
+    included_file = os.path.join(report_dir, "included_documents.csv")
+    if isinstance(selected_docs, pd.DataFrame):
+        selected_docs.to_csv(included_file, index=False)
+    else:
+        pd.DataFrame({'Title': doc_titles}).to_csv(included_file, index=False)
+
+    # Load the questions from the existing CSV file
+    questionnaire_dir = os.path.join("questionnaires", questionnaire_name.replace(" ", "_"))
+    questions_file = os.path.join(questionnaire_dir, f"{questionnaire_name.replace(' ', '_')}_questions.csv")
     
-    updated_data.to_csv(file_name, index=False)
+    if os.path.exists(questions_file):
+        questions_df = pd.read_csv(questions_file)
+    else:
+        st.error(f"Questions file not found: {questions_file}")
+        return None
+
+    # Questionnaire completion CSV
+    completion_file = os.path.join(report_dir, "questionnaire_completion.csv")
     
-    st.success(f"Documents assigned successfully! File saved as {file_name}")
+    # Add empty 'Answer' and 'Reference' columns
+    questions_df['Answer'] = ''
+    questions_df['Reference'] = ''
+    
+    # Save the new DataFrame to the completion file
+    questions_df.to_csv(completion_file, index=False)
+
+    # Text report
+    report_text_file = os.path.join(report_dir, "report.txt")
+    with open(report_text_file, 'w') as f:
+        f.write(f"Project: {selected_project}\n")
+        f.write(f"Report Name: {report_name}\n")
+        f.write(f"Questionnaire: {questionnaire_name}\n")
+        f.write(f"Number of Assigned Documents: {len(doc_titles)}\n")
+        f.write("\nAssigned Documents:\n")
+        for doc in doc_titles:
+            f.write(f"- {doc}\n")
+
+    st.success(f"Report directory created: {report_dir}")
+    st.success(f"Documents assigned successfully! File saved as {assigned_file}")
+    st.success(f"Included documents saved as {included_file}")
+    st.success(f"Questionnaire completion file saved as {completion_file}")
+    st.success(f"Detailed report saved as {report_text_file}")
+    
+    return report_dir
+
 
 def Reports_page():
     st.title("Reports")
@@ -152,10 +208,28 @@ def Reports_page():
     data = pd.read_csv("Data.csv")
     project_data = data[data['Project'] == selected_project].iloc[0]
 
+    # Add the button to the sidebar
+    if st.session_state.get('view_reports', False):
+        if st.sidebar.button("Back to Reports"):
+            st.session_state.view_reports = False
+            st.experimental_rerun()
+    else:
+        if st.sidebar.button("View Reports"):
+            st.session_state.view_reports = True
+            st.experimental_rerun()
+
+    if st.session_state.get('view_reports', False):
+        selected_questionnaire = st.session_state.get('selected_questionnaire', None)
+        view_reports_page(selected_project, selected_questionnaire)  # Call the function from view_reports.py
+    else:
+        display_reports_page(selected_project, project_data)
+
+def display_reports_page(selected_project, project_data):
     st.sidebar.title("Project Information")
     st.sidebar.write(f"**Name:** '{selected_project}'")
     st.sidebar.write(f"**Team Lead**: {project_data['Team Lead']}")
     st.sidebar.write(f"**Description**: {project_data['Description']}")
+    st.sidebar.divider()
 
     report_name = enter_name()
     st.session_state['report_name'] = report_name
@@ -173,6 +247,7 @@ def Reports_page():
     selected_questionnaire = show_questionnaires(questionnaire_path)
 
     if selected_questionnaire is not None:
+        st.session_state.selected_questionnaire = selected_questionnaire
         project_paths_file = "project_paths.csv"
         project_paths_path = os.path.join(os.getcwd(), project_paths_file)
 
@@ -182,15 +257,32 @@ def Reports_page():
             if not project_file_path_df.empty:
                 project_file_path = project_file_path_df.iloc[0]
                 
-                show_filtered_documents(project_file_path, selected_questionnaire['name'])
+                selected_docs = show_filtered_documents(project_file_path, selected_questionnaire['name'])
 
-                #st.subheader("4. Generate Report")
-                if st.button("Generate Report"):
-                    if report_name:
-                        st.success(f"Report '{report_name}' generated successfully for project '{selected_project}' using questionnaire '{selected_questionnaire['name']}'")
-                        st.session_state.selected_questionnaire = selected_questionnaire
-                    else:
-                        st.warning("Please enter a report name before generating the report.")
+                if selected_docs is not None and len(selected_docs) > 0:
+                    if st.button("Create Report"):
+                        if report_name:
+                            questionnaire_data = load_questionnaires(questionnaire_path)
+                            questionnaire_details = questionnaire_data[questionnaire_data['name'] == selected_questionnaire['name']]
+                        
+                            report_dir = assign_documents_and_generate_report(
+                                selected_questionnaire['name'], 
+                                selected_docs, 
+                                report_name, 
+                                selected_project,
+                                questionnaire_details
+                            )
+                            if report_dir:
+                                st.session_state.setdefault('generated_reports', {}).setdefault(selected_project, []).append({
+                                    'name': report_name,
+                                    'path': report_dir,
+                                    'questionnaire': selected_questionnaire['name']
+                                })
+                            st.session_state.selected_questionnaire = selected_questionnaire
+                        else:
+                            st.warning("Please enter a report name before generating the report.")
+                else:
+                    st.info("Select Docs for Report Generation")
             else:
                 st.error(f"Project file path not found for project: {selected_project}")
         else:

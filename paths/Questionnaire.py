@@ -61,7 +61,7 @@ def input_questionnaire_data(categories, questionnaire_path):
         user_name = st.text_input("By User")
         description = st.text_area("Description")
         Date = st.date_input('Start Date', value=date.today())
-
+        st.warning("Upload files in CSV only")
         # Allow file upload for questions
         uploaded_files = st.file_uploader("Upload Questions", type=["xlsx", "csv"], accept_multiple_files=True)
         questions = []
@@ -126,7 +126,7 @@ def add_questions_manually(questionnaire_path, selected_questionnaire):
     st.header(f"Add New Questions for '{selected_questionnaire}'")
 
     # Option to upload CSV/Excel files
-    uploaded_files = st.file_uploader("Upload Questions (CSV/Excel)", type=["csv", "xlsx"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload Questions converted to CSV)", type=["csv", "xlsx"], accept_multiple_files=True)
     if uploaded_files:
         for file in uploaded_files:
             if file.name.endswith(".csv"):

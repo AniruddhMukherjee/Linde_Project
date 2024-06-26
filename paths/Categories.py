@@ -8,7 +8,7 @@ categories_path = os.path.join(os.getcwd(), categories_file)
 
 # Adds the category to the file
 def add_category():
-    with st.expander("Add a new category"):
+    with st.popover("Add a new category"):
         new_category = st.text_input("Click enter to add categories")
         if new_category and st.button("Add Category"):
             categories_df = pd.read_csv(categories_path)
@@ -51,7 +51,7 @@ def display_categories(categories_df):
 
     selected_rows = ag_response["selected_rows"]
 
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([3,1])
     with col1:
         add_category()
 
