@@ -132,47 +132,46 @@ def show_project_data(selected_project, project_file_path, categories, project_d
         if not selected_rows.empty:
             selected_row = selected_rows.iloc[0]
             st.success(f"Currently '{selected_row['Title']}' has been selected.")
-        else:
-            st.warning("No file is currently selected.")
+            col1, col2, col3 = st.columns([2,1,1])
+            with col1:
+                toggle_show_docs(selected_rows,project_dir)
+
+            with col2:
+                if st.button("Save Changes"):
+                    update_project_data(updated_df, project_file_path)
+
+            with col3:
+            #dialog_placeholder = st.empty()
+
+                if "delete_files_dialog_open" not in st.session_state:
+                    st.session_state.delete_files_dialog_open = False
+
+                if st.button("Delete File"):
+                    if selected_rows is not None and not selected_rows.empty:
+                        st.session_state.delete_files_dialog_open = True
+                    else:
+                        st.warning("No files are currently selected.")
+
+                if st.session_state.delete_files_dialog_open:
+                    @st.experimental_dialog("Delete Files")
+                    def delete_files_dialog():
+                        selected_file_names = [row["fileID"] for row in selected_rows.to_dict("records")]
+                        st.write(f"Are you sure you want to delete the following files?\n\n{', '.join(selected_file_names)}")
+                        col1, col2 = st.columns(2)
+                        if col1.button("Cancel"):
+                            st.session_state.delete_files_dialog_open = False
+                            st.rerun()
+                        if col2.button("Delete"):
+                            delete_files(updated_df, selected_file_names, project_file_path)
+                            st.success(f"Selected files have been deleted.")
+                            st.session_state.delete_files_dialog_open = False
+                            st.rerun()
+                    delete_files_dialog()
     else:
         st.warning("No file is currently selected.")
 
 
-    col1, col2, col3 = st.columns([2,1,1])
-    with col1:
-        toggle_show_docs(selected_rows,project_dir)
-
-    with col2:
-        if st.button("Save Changes"):
-            update_project_data(updated_df, project_file_path)
-
-    with col3:
-    #dialog_placeholder = st.empty()
-
-        if "delete_files_dialog_open" not in st.session_state:
-            st.session_state.delete_files_dialog_open = False
-
-        if st.button("Delete Files"):
-            if selected_rows is not None and not selected_rows.empty:
-                st.session_state.delete_files_dialog_open = True
-            else:
-                st.warning("No files are currently selected.")
-
-        if st.session_state.delete_files_dialog_open:
-            @st.experimental_dialog("Delete Files")
-            def delete_files_dialog():
-                selected_file_names = [row["fileID"] for row in selected_rows.to_dict("records")]
-                st.write(f"Are you sure you want to delete the following files?\n\n{', '.join(selected_file_names)}")
-                col1, col2 = st.columns(2)
-                if col1.button("Cancel"):
-                    st.session_state.delete_files_dialog_open = False
-                    st.rerun()
-                if col2.button("Delete"):
-                    delete_files(updated_df, selected_file_names, project_file_path)
-                    st.success(f"Selected files have been deleted.")
-                    st.session_state.delete_files_dialog_open = False
-                    st.rerun()
-            delete_files_dialog()
+    
 
 def toggle_show_docs(selected_rows,project_dir):
     file = st.session_state.get('file', False)
@@ -196,6 +195,9 @@ def show_document(selected_rows,project_dir):
                     st.warning("Preview not available for Word or Text files.")
                 else:
                     st.warning("Selected file is not a PDF, Word document, or text file.")
+            
+            else:
+                st.warning("Select document first")
 
 def Documents_page():
     st.title("Documents")

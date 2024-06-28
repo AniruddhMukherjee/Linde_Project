@@ -1,9 +1,0 @@
-Project: vd
-Report Name: you
-Questionnaire: csscssc
-Number of Assigned Documents: 3
-
-Assigned Documents:
-- profile
-- cdc
-- cdccd

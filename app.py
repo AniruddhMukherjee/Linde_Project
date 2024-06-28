@@ -36,8 +36,6 @@ file_uploads = pd.read_csv("project_paths.csv")
 
 def main():
 
-
-
     if selected == "Category":
         categories_page.Categories_page()
 
