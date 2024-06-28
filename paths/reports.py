@@ -6,6 +6,15 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 from paths.view_reports import view_reports_page
 
 def questionnaire_table_size(questionnaire_data):
+    """
+    Calculate the appropriate height for the questionnaire AgGrid table.
+
+    Args:
+    questionnaire_data (pd.DataFrame): The DataFrame containing questionnaire data.
+
+    Returns:
+    int: The calculated height for the AgGrid table in pixels.
+    """
     # Calculate the height based on the number of rows
     row_height = 35  # Approximate height of each row in pixels
     header_height = 40  # Approximate height of the header in pixels
@@ -14,8 +23,13 @@ def questionnaire_table_size(questionnaire_data):
     calculated_height = min(max(min_height, len(questionnaire_data) * row_height + header_height), max_height)
     return calculated_height
 
-
 def enter_name():
+    """
+    Display an input field for the user to enter a report name.
+
+    Returns:
+    str: The entered report name, or None if no name was entered.
+    """
     st.subheader("1. Enter Report Name:")
     report_name = st.text_input("Enter Report Name:")
     if report_name:
@@ -24,6 +38,15 @@ def enter_name():
     return None
 
 def load_questionnaires(questionnaire_path):
+    """
+    Load questionnaire data from a CSV file.
+
+    Args:
+    questionnaire_path (str): The file path to the questionnaires CSV.
+
+    Returns:
+    pd.DataFrame: The loaded questionnaire data, or None if an error occurred.
+    """
     try:
         questionnaire_data = pd.read_csv(questionnaire_path)
         return questionnaire_data
@@ -32,6 +55,15 @@ def load_questionnaires(questionnaire_path):
         return None
 
 def show_questionnaires(questionnaire_path):
+    """
+    Display questionnaires in an AgGrid table and handle selection.
+
+    Args:
+    questionnaire_path (str): The file path to the questionnaires CSV.
+
+    Returns:
+    dict or None: The selected questionnaire data, or None if no selection was made.
+    """
     questionnaire_data = pd.read_csv(questionnaire_path)
     
     gb = GridOptionsBuilder.from_dataframe(questionnaire_data)
@@ -76,8 +108,8 @@ def show_questionnaires(questionnaire_path):
         st.session_state.selected_category = None
         return None
 
-
 def documents_table_size(filtered_data):
+    """Calculate the appropriate height for the documents AgGrid table."""
     # Calculate the height based on the number of rows
     row_height = 35  # Approximate height of each row in pixels
     header_height = 40  # Approximate height of the header in pixels
@@ -87,6 +119,16 @@ def documents_table_size(filtered_data):
     return calculated_height
 
 def show_filtered_documents(project_file_path, questionnaire_name):
+    """
+    Display filtered documents based on the selected questionnaire category.
+
+    Args:
+    project_file_path (str): The file path to the project CSV.
+    questionnaire_name (str): The name of the selected questionnaire.
+
+    Returns:
+    pd.DataFrame or None: The selected documents, or None if no selection was made.
+    """
     if 'selected_category' not in st.session_state or st.session_state.selected_category is None:
         st.warning("Please select a questionnaire first to view relevant documents.")
         return
@@ -124,6 +166,19 @@ def show_filtered_documents(project_file_path, questionnaire_name):
     return selected_docs
 
 def assign_documents_and_generate_report(questionnaire_name, selected_docs, report_name, selected_project, questionnaire_data):
+    """
+    Assign documents to a questionnaire and generate a report.
+
+    Args:
+    questionnaire_name (str): The name of the selected questionnaire.
+    selected_docs (pd.DataFrame or list): The selected documents.
+    report_name (str): The name of the report to be generated.
+    selected_project (str): The name of the selected project.
+    questionnaire_data (pd.DataFrame): The questionnaire data.
+
+    Returns:
+    str or None: The path to the generated report directory, or None if an error occurred.
+    """
     success_messages = []
     error_messages = []
 
@@ -206,8 +261,13 @@ def assign_documents_and_generate_report(questionnaire_name, selected_docs, repo
 
     return report_dir if not error_messages else None
 
-
 def Reports_page():
+    """
+    Main function to render the Reports page.
+
+    This function handles the overall flow of the Reports page, including
+    switching between report creation and viewing modes.
+    """
     st.title("Reports")
     selected_project = st.session_state.get("selected_project", None)
 
@@ -235,6 +295,29 @@ def Reports_page():
         display_reports_page(selected_project, project_data)
 
 def display_reports_page(selected_project, project_data):
+    """
+    Display the main reports creation page.
+
+    Args:
+    selected_project (str): The name of the selected project.
+    project_data (pd.Series): The data for the selected project.
+    """
+    SIDEBAR_LOGO = "linde-text.png"
+    MAINPAGE_LOGO = "linde_india_ltd_logo.jpeg"
+
+    sidebar_logo = SIDEBAR_LOGO
+    main_body_logo = MAINPAGE_LOGO
+
+    st.markdown("""
+<style>
+[data-testid="stSidebarNav"] > div:first-child > img {
+    width: 900px; /* Adjust the width as needed */
+    height: auto; /* Maintain aspect ratio */
+}
+</style>
+""", unsafe_allow_html=True)
+    
+    st.logo(sidebar_logo, icon_image=main_body_logo)
     st.sidebar.title("Project Information")
     st.sidebar.write(f"**Name:** '{selected_project}'")
     st.sidebar.write(f"**Team Lead**: {project_data['Team Lead']}")

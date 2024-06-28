@@ -1,10 +1,26 @@
 import os
 import pandas as pd
 import streamlit as st
-from PIL import Image
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
+def ensure_project_paths_file_exists():
+    """
+    Ensure that the project_paths.csv file exists. 
+    If it doesn't, create it with the necessary columns.
+    """
+    project_paths_file = "project_paths.csv"
+    if not os.path.exists(project_paths_file):
+        # Create the file with the required columns
+        pd.DataFrame(columns=['File Name', 'File Path']).to_csv(project_paths_file, index=False)
+        st.info("Created new project_paths.csv file.")
+
 def delete_project(project_name):
+    """
+    Delete a project and its associated files.
+
+    Args:
+    project_name (str): The name of the project to be deleted.
+    """
     data = pd.read_csv("Data.csv")
     data = data[data['Project'] != project_name]
     data.to_csv("Data.csv", index=False)
@@ -34,6 +50,12 @@ def delete_project(project_name):
     st.success(f"Project '{project_name}' deleted successfully!")
 
 def create_form():
+    """
+    Create and display a form for project creation in the sidebar.
+
+    This function sets up a form in the Streamlit sidebar to collect project details,
+    creates a new project directory, and updates the necessary CSV files when submitted.
+    """
     st.markdown("""
     <style>
         [data-testid=stSidebar] {
@@ -91,6 +113,12 @@ def create_form():
             st.success(f"Project '{project}' created successfully.")
 
 def enter_values():
+    """
+    Handle the 'Create Project' button and form display logic.
+
+    This function toggles the visibility of the project creation form and calls create_form()
+    when the form should be displayed.
+    """
     show_content = st.session_state.get('show_content', False)
 
     if st.button('Create Project'):
@@ -101,6 +129,9 @@ def enter_values():
         create_form()
 
 def table_size(data):
+    """
+    Calculate the appropriate height for the AgGrid table based on the number of rows.
+    """
     row_height = 35
     header_height = 40
     min_height = 50
@@ -109,6 +140,12 @@ def table_size(data):
     return calculated_height
 
 def Table_data():
+    """
+    Display and manage the projects table using AgGrid.
+
+    This function loads project data from Data.csv, configures and displays an AgGrid table,
+    handles project selection, and provides options for saving changes and deleting projects.
+    """
     global data
     data = pd.read_csv("Data.csv")
     gb = GridOptionsBuilder.from_dataframe(data)
@@ -186,6 +223,12 @@ def Table_data():
             delete_project_dialog()
 
 def projects_page():
+    """
+    Render the main projects page of the application.
+
+    This function sets up the page layout, including logos and styling, and calls the necessary
+    functions to display the project creation form and the projects table.
+    """
     SIDEBAR_LOGO = "linde-text.png"
     MAINPAGE_LOGO = "linde_india_ltd_logo.jpeg"
 
@@ -206,5 +249,4 @@ def projects_page():
     cr, dele = st.columns(2)
     enter_values()
     Table_data()
-
-    
+ 

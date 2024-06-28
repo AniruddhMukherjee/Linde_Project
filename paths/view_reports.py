@@ -4,13 +4,32 @@ import os
 import shutil
 from st_aggrid import AgGrid, GridOptionsBuilder
 import io
-import base64
-import xlsxwriter
 
 def view_reports_page(selected_project, selected_questionnaire):
-    #st.title(f"View Reports for {selected_project}")
+    """
+    Display the main page for viewing reports of a selected project.
+
+    Args:
+    selected_project (str): The name of the selected project.
+    selected_questionnaire (str): The name of the selected questionnaire.
+    """
+    SIDEBAR_LOGO = "linde-text.png"
+    MAINPAGE_LOGO = "linde_india_ltd_logo.jpeg"
+
+    sidebar_logo = SIDEBAR_LOGO
+    main_body_logo = MAINPAGE_LOGO
+
+    st.markdown("""
+<style>
+[data-testid="stSidebarNav"] > div:first-child > img {
+    width: 900px; /* Adjust the width as needed */
+    height: auto; /* Maintain aspect ratio */
+}
+</style>
+""", unsafe_allow_html=True)
     
-    # Display project info in the sidebar
+    st.logo(sidebar_logo, icon_image=main_body_logo)
+    #st.title(f"View Reports for {selected_project}")
     data = pd.read_csv("Data.csv")
     project_data = data[data['Project'] == selected_project].iloc[0]
     st.sidebar.title("Project Information")
@@ -47,6 +66,15 @@ def view_reports_page(selected_project, selected_questionnaire):
         st.info("No reports found for this project.")
 
 def find_reports(project_name):
+    """
+    Find all reports associated with a given project.
+
+    Args:
+    project_name (str): The name of the project to find reports for.
+
+    Returns:
+    list: A list of dictionaries containing report information.
+    """
     reports = []
     for file in os.listdir():
         if file.startswith(f"{project_name}_") and os.path.isdir(file):
@@ -65,6 +93,9 @@ def find_reports(project_name):
     return reports
 
 def table_size_drd(df):
+    """
+    Calculate the appropriate height for the AgGrid table displaying included documents.
+    """
     # Calculate the height based on the number of rows
     row_height = 35  # Approximate height of each row in pixels
     header_height = 40  # Approximate height of the header in pixels
@@ -74,6 +105,7 @@ def table_size_drd(df):
     return calculated_height
 
 def table_size_drd2(completion_df):
+    """Calculate the appropriate height for the AgGrid table displaying questionnaire completion."""
     # Calculate the height based on the number of rows
     row_height = 35  # Approximate height of each row in pixels
     header_height = 40  # Approximate height of the header in pixels
@@ -83,6 +115,19 @@ def table_size_drd2(completion_df):
     return calculated_height
 
 def generate_excel_report(project_name, report, project_info, included_docs_df, completion_df):
+    """
+    Generate an Excel report containing project details, included documents, and questionnaire completion.
+
+    Args:
+    project_name (str): The name of the project.
+    report (dict): The report information.
+    project_info (pd.Series): The project information.
+    included_docs_df (pd.DataFrame): The DataFrame of included documents.
+    completion_df (pd.DataFrame): The DataFrame of questionnaire completion.
+
+    Returns:
+    bytes: The Excel file content as bytes.
+    """
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         workbook = writer.book
@@ -122,9 +167,15 @@ def generate_excel_report(project_name, report, project_info, included_docs_df, 
     return output.getvalue()
 
 def display_report_details(report, project_name, selected_questionnaire):
+    """
+    Display the details of a selected report, including included documents and questionnaire completion.
+
+    Args:
+    report (dict): The report information.
+    project_name (str): The name of the project.
+    selected_questionnaire (str): The name of the selected questionnaire.
+    """
     #st.write(f"## Report for Project: {project_name}")
-    
-    # Display text report content
     with open(report['txt_path'], 'r') as f:
         content = f.readlines()
     
@@ -193,23 +244,14 @@ def display_report_details(report, project_name, selected_questionnaire):
         if st.session_state.delete_report_open:
             delete_report_dialog(report, project_name)
 
-def table_size_drd(df):
-    row_height = 35
-    header_height = 40
-    min_height = 50
-    max_height = 600
-    calculated_height = min(max(min_height, len(df) * row_height + header_height), max_height)
-    return calculated_height
-
-def table_size_drd2(completion_df):
-    row_height = 35
-    header_height = 40
-    min_height = 50
-    max_height = 600
-    calculated_height = min(max(min_height, len(completion_df) * row_height + header_height), max_height)
-    return calculated_height
-
 def delete_report_dialog(report, project_name):
+    """
+    Display a confirmation dialog for deleting a report.
+
+    Args:
+    report (dict): The report information.
+    project_name (str): The name of the project.
+    """
     @st.experimental_dialog("Delete Report")
     def delete_report_dialog_content():
         st.write(f"Are you sure you want to delete the report '{report['name']}' for project '{project_name}'?")
@@ -226,10 +268,10 @@ def delete_report_dialog(report, project_name):
     delete_report_dialog_content()
 
 def delete_report(report):
-    import shutil
+    """
+    Delete a report and its associated directory.
+
+    Args:
+    report (dict): The report information containing the directory to be deleted.
+    """
     shutil.rmtree(report['dir'])
-
-
-
-
-    # total lines of code 1394

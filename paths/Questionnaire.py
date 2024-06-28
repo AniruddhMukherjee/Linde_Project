@@ -4,20 +4,31 @@ import os
 from datetime import date
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 import shutil
-import textwrap
-import streamlit.components.v1 as components
 from paths.manage_questions import manage_questions_page
 
 # Initialize session state
 if "questionnaires" not in st.session_state:
     st.session_state.questionnaires = []
 
-# Function to save questionnaire data
 def save_questionnaire_data(data, path):
+    """
+    Save questionnaire data to a CSV file.
+
+    Args:
+    data (pd.DataFrame): The questionnaire data to save.
+    path (str): The file path where the data will be saved.
+    """
     data.to_csv(path, index=False)
 
-# Function to delete a questionnaire
 def delete_questionnaire(questionnaire_data, questionnaire_name, questionnaire_path):
+    """
+    Delete a questionnaire from the data and remove its associated directory.
+
+    Args:
+    questionnaire_data (pd.DataFrame): The current questionnaire data.
+    questionnaire_name (str): The name of the questionnaire to delete.
+    questionnaire_path (str): The path to the questionnaire CSV file.
+    """
     questionnaire_data = questionnaire_data[questionnaire_data['name'] != questionnaire_name]
     save_questionnaire_data(questionnaire_data, questionnaire_path)
 
@@ -28,13 +39,25 @@ def delete_questionnaire(questionnaire_data, questionnaire_name, questionnaire_p
 
     st.success(f"Questionnaire '{questionnaire_name}' deleted successfully!")
 
-# Function to update questionnaire data
 def update_questionnaire_data(updated_df, questionnaire_path):
+    """
+    Update the questionnaire data in the CSV file.
+
+    Args:
+    updated_df (pd.DataFrame): The updated questionnaire data.
+    questionnaire_path (str): The path to the questionnaire CSV file.
+    """
     updated_df.to_csv(questionnaire_path, index=False)
     st.success("Questionnaire data updated successfully!")
 
-# Function to input new questionnaire data
 def input_questionnaire_data(categories, questionnaire_path):
+    """
+    Display a form for inputting new questionnaire data and handle form submission.
+
+    Args:
+    categories (list): List of available categories.
+    questionnaire_path (str): The path to the questionnaire CSV file.
+    """
     st.markdown("""
 <style>
     [data-testid=stSidebar] {
@@ -60,10 +83,10 @@ def input_questionnaire_data(categories, questionnaire_path):
         category = st.selectbox("Category", categories)
         user_name = st.text_input("By User")
         description = st.text_area("Description")
-        Date = st.date_input('Start Date', value=date.today())
+        Date = st.date_input('Date', value=date.today())
         st.warning("Upload files in CSV only")
         # Allow file upload for questions
-        uploaded_files = st.file_uploader("Upload Questions", type=["xlsx", "csv"], accept_multiple_files=True)
+        uploaded_files = st.file_uploader("Upload Questions", type=["csv"], accept_multiple_files=True)
         questions = []
         if uploaded_files:
             for file in uploaded_files:
@@ -106,6 +129,16 @@ def input_questionnaire_data(categories, questionnaire_path):
                 st.success(f"Questions file '{file.name}' uploaded successfully!")
 
 def get_questions(questionnaire_path, selected_questionnaire):
+    """
+    Retrieve questions for a specific questionnaire.
+
+    Args:
+    questionnaire_path (str): The path to the questionnaire CSV file.
+    selected_questionnaire (str): The name of the selected questionnaire.
+
+    Returns:
+    pd.DataFrame: A DataFrame containing the questions for the selected questionnaire.
+    """
     questionnaire_dir = os.path.join("questionnaires", selected_questionnaire.replace(" ", "_"))
     questions_file = os.path.join(questionnaire_dir, f"{selected_questionnaire.replace(' ', '_')}_questions.csv")
     if os.path.exists(questions_file):
@@ -115,6 +148,13 @@ def get_questions(questionnaire_path, selected_questionnaire):
         return pd.DataFrame({"Questions": ["No questions yet"]})
 
 def add_questions_manually(questionnaire_path, selected_questionnaire):
+    """
+    Allow manual addition of questions to a selected questionnaire.
+
+    Args:
+    questionnaire_path (str): The path to the questionnaire CSV file.
+    selected_questionnaire (str): The name of the selected questionnaire.
+    """
     questionnaire_dir = os.path.join("questionnaires", selected_questionnaire.replace(" ", "_"))
     questions_file = os.path.join(questionnaire_dir, f"{selected_questionnaire.replace(' ', '_')}_questions.csv")
 
@@ -157,6 +197,7 @@ def add_questions_manually(questionnaire_path, selected_questionnaire):
             st.warning("No new questions entered.")
 
 def table_size(questionnaire_path):
+    """Display existing questionnaires in an editable AgGrid table and handle user interactions."""
     # Calculate the height based on the number of rows
     questionnaire_df = pd.read_csv(questionnaire_path)
     row_height = 35  # Approximate height of each row in pixels
@@ -167,6 +208,13 @@ def table_size(questionnaire_path):
     return calculated_height
 
 def show_questionnaires(questionnaire_path, categories):
+    """
+    Display existing questionnaires in an editable AgGrid table and handle user interactions.
+
+    Args:
+    questionnaire_path (str): The path to the questionnaire CSV file.
+    categories (list): List of available categories.
+    """
     questionnaire_data = pd.read_csv(questionnaire_path)
     if 'questions' in questionnaire_data.columns:
         questionnaire_data_without_questions = questionnaire_data.drop("questions", axis=1)
@@ -248,6 +296,13 @@ def show_questionnaires(questionnaire_path, categories):
         st.warning("No questionnaire is currently selected.")
 
 def enter_values(categories, questionnaire_path):
+    """
+    Handle the 'New Questionnaire' button and form display logic.
+
+    Args:
+    categories (list): List of available categories.
+    questionnaire_path (str): The path to the questionnaire CSV file.
+    """
     show_content = st.session_state.get('show_content', False)
 
     # Create a button to toggle the visibility of the content
@@ -259,8 +314,29 @@ def enter_values(categories, questionnaire_path):
     if show_content:
         input_questionnaire_data(categories, questionnaire_path)
 
-# Main app
 def Questionnaire_page():
+    """
+    Render the main Questionnaire Management page.
+
+    This function sets up the page layout, loads necessary data, and calls functions
+    to display existing questionnaires and handle the creation of new questionnaires.
+    """
+    SIDEBAR_LOGO = "linde-text.png"
+    MAINPAGE_LOGO = "linde_india_ltd_logo.jpeg"
+
+    sidebar_logo = SIDEBAR_LOGO
+    main_body_logo = MAINPAGE_LOGO
+
+    st.markdown("""
+<style>
+[data-testid="stSidebarNav"] > div:first-child > img {
+    width: 900px; /* Adjust the width as needed */
+    height: auto; /* Maintain aspect ratio */
+}
+</style>
+""", unsafe_allow_html=True)
+    
+    st.logo(sidebar_logo, icon_image=main_body_logo)
     global selected_questionnaire
     st.title("Questionnaire Management")
 
@@ -276,7 +352,7 @@ def Questionnaire_page():
     # Load questionnaire data from questionnaires.csv
     questionnaire_path = os.path.join(os.getcwd(), "questionnaires.csv")
     if not os.path.exists(questionnaire_path):
-        pd.DataFrame(columns=["name", "category", "user", "description", "start_date", "questions"]).to_csv(questionnaire_path, index=False)
+        pd.DataFrame(columns=["name", "category", "user", "description", "Date", "questions"]).to_csv(questionnaire_path, index=False)
 
     # Initialize selected_row_data in st.session_state
     if "selected_row_data" not in st.session_state:
@@ -289,7 +365,3 @@ def Questionnaire_page():
     enter_values(categories, questionnaire_path)
     #Display the questionnaires
     show_questionnaires(questionnaire_path, categories)
-
-   
-
- 

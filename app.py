@@ -2,12 +2,6 @@
 import streamlit as st
 import pandas as pd
 from streamlit_option_menu import option_menu
-import os
-from pathlib import Path
-from st_aggrid import AgGrid, GridUpdateMode, DataReturnMode, GridOptionsBuilder
-import tempfile
-from PIL import Image
-
 
 # Import Files
 import paths.Categories as categories_page
@@ -16,10 +10,12 @@ import paths.Documents as documents_page
 import paths.Questionnaire as questionnaire_page
 import paths.reports as reports_page
 
-
 # set page config wide
 st. set_page_config(layout="wide")
 
+# The main files to read
+data = pd.read_csv("Data.csv")
+file_uploads = pd.read_csv("project_paths.csv")
 
 # The top menu bar
 selected = option_menu(
@@ -29,13 +25,13 @@ selected = option_menu(
    orientation = "horizontal"
 )
 
-
-# The main files to read
-data = pd.read_csv("Data.csv")
-file_uploads = pd.read_csv("project_paths.csv")
-
 def main():
-
+    """
+    Main function to control the flow of the application.
+    
+    This function checks the selected menu option and calls the appropriate
+    page function from the imported modules.
+    """
     if selected == "Category":
         categories_page.Categories_page()
 
@@ -51,6 +47,7 @@ def main():
     if selected == "Report":
         reports_page.Reports_page()
 
-
 if __name__ == "__main__":
     main()
+
+# total lines of code 1979 ~ 2000

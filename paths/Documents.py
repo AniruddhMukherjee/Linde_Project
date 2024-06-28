@@ -5,19 +5,51 @@ import base64
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
 def save_data(data, path):
+    """
+    Save the given data to a CSV file.
+
+    Args:
+    data (pd.DataFrame): The data to be saved.
+    path (str): The file path where the data should be saved.
+    """
     data.to_csv(path, index=False)
 
 def delete_files(project_data, selected_file_names, project_file_path):
+    """
+    Delete selected files from the project data and update the CSV file.
+
+    Args:
+    project_data (pd.DataFrame): The current project data.
+    selected_file_names (list): List of file names to be deleted.
+    project_file_path (str): Path to the project CSV file.
+    """
+
     for file_name in selected_file_names:
         project_data = project_data[project_data['fileID'] != file_name]
     save_data(project_data, project_file_path)
     st.success(f"{len(selected_file_names)} file(s) deleted successfully!")
 
 def update_project_data(updated_df, project_file_path):
+    """
+    Delete selected files from the project data and update the CSV file.
+
+    Args:
+    project_data (pd.DataFrame): The current project data.
+    selected_file_names (list): List of file names to be deleted.
+    project_file_path (str): Path to the project CSV file.
+    """
     updated_df.to_csv(project_file_path, index=False)
     st.success("Project data updated successfully!")
 
 def input_data(categories, project_dir):
+    """
+    Display a form for uploading new files and adding their details to the project.
+
+    Args:
+    categories (list): List of available categories.
+    project_dir (str): Directory path for the current project.
+    """
+
     st.markdown("""
     <style>
         [data-testid=stSidebar] {
@@ -74,12 +106,25 @@ def input_data(categories, project_dir):
     # Display current project data
 
 def display_pdf(file_path):
+    """
+    Display a PDF file in the Streamlit app.
+
+    Args:
+    file_path (str): Path to the PDF file.
+    """
     with open(file_path, "rb") as f:
         base64_pdf = base64.b64encode(f.read()).decode('utf-8')
     pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf"></iframe>'
     st.markdown(pdf_display, unsafe_allow_html=True)
 
 def NewFile(categories, project_dir):
+    """
+    Display a button to toggle the visibility of the file upload form.
+
+    Args:
+    categories (list): List of available categories.
+    project_dir (str): Directory path for the current project.
+    """
     show_content = st.session_state.get('show_content', False)
 
     # Create a button to toggle the visibility of the content
@@ -92,6 +137,15 @@ def NewFile(categories, project_dir):
         input_data(categories, project_dir)
 
 def table_size(project_data):
+    """
+    Calculate the appropriate height for the data grid based on the number of rows.
+
+    Args:
+    project_data (pd.DataFrame): The project data to be displayed.
+
+    Returns:
+    int: The calculated height for the grid.
+    """
     # Calculate the height based on the number of rows
     row_height = 35  # Approximate height of each row in pixels
     header_height = 40  # Approximate height of the header in pixels
@@ -101,6 +155,15 @@ def table_size(project_data):
     return calculated_height
 
 def show_project_data(selected_project, project_file_path, categories, project_dir):
+    """
+    Display and manage the project data in an editable AGgrid.
+
+    Args:
+    selected_project (str): Name of the currently selected project.
+    project_file_path (str): Path to the project CSV file.
+    categories (list): List of available categories.
+    project_dir (str): Directory path for the current project.
+    """
     project_data = pd.read_csv(project_file_path)
 
     gb = GridOptionsBuilder.from_dataframe(project_data)
@@ -170,10 +233,14 @@ def show_project_data(selected_project, project_file_path, categories, project_d
     else:
         st.warning("No file is currently selected.")
 
-
-    
-
 def toggle_show_docs(selected_rows,project_dir):
+    """
+    Toggle the display of the selected document.
+    
+    Args:
+    selected_rows (pd.DataFrame): The currently selected rows from the data grid.
+    project_dir (str): Directory path for the current project.
+    """
     file = st.session_state.get('file', False)
 
     if st.button('Show File'):
@@ -183,23 +250,49 @@ def toggle_show_docs(selected_rows,project_dir):
     if file:
         show_document(selected_rows,project_dir)   
 
-
 def show_document(selected_rows,project_dir):
-            if selected_rows is not None and not selected_rows.empty:
-                selected_file = selected_rows.iloc[0]['fileID']
-                file_path = os.path.join(project_dir, selected_file)
-                if file_path.lower().endswith('.pdf'):
-                    st.subheader(f"Viewing: {selected_file}")
-                    display_pdf(file_path)
-                elif file_path.lower().endswith(('.docx', '.txt')):
-                    st.warning("Preview not available for Word or Text files.")
-                else:
-                    st.warning("Selected file is not a PDF, Word document, or text file.")
+    """
+    Display the selected document if it's a PDF, or show a warning for other file types.
+    
+    Args:
+    selected_rows (pd.DataFrame): The currently selected rows from the data grid.
+    project_dir (str): Directory path for the current project.
+    """       
+    if selected_rows is not None and not selected_rows.empty:
+        selected_file = selected_rows.iloc[0]['fileID']
+        file_path = os.path.join(project_dir, selected_file)
+        if file_path.lower().endswith('.pdf'):
+            st.subheader(f"Viewing: {selected_file}")
+            display_pdf(file_path)
+        elif file_path.lower().endswith(('.docx', '.txt')):
+            st.warning("Preview not available for Word or Text files.")
+        else:
+            st.warning("Selected file is not a PDF, Word document, or text file.")
             
-            else:
-                st.warning("Select document first")
+    else:
+        st.warning("Select document first")
 
 def Documents_page():
+    """
+    Main function to display the Documents page.
+    Handles project selection, file uploads, and document management.
+    """
+    SIDEBAR_LOGO = "linde-text.png"
+    MAINPAGE_LOGO = "linde_india_ltd_logo.jpeg"
+
+    sidebar_logo = SIDEBAR_LOGO
+    main_body_logo = MAINPAGE_LOGO
+
+    st.markdown("""
+<style>
+[data-testid="stSidebarNav"] > div:first-child > img {
+    width: 900px; /* Adjust the width as needed */
+    height: auto; /* Maintain aspect ratio */
+}
+</style>
+""", unsafe_allow_html=True)
+    
+    st.logo(sidebar_logo, icon_image=main_body_logo)
     st.title("Documents")
 
     project_paths_file = "project_paths.csv"

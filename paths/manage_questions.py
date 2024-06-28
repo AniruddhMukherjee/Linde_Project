@@ -4,10 +4,26 @@ import os
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, ColumnsAutoSizeMode
 
 def custom_sort_key(index):
+    """
+    Create a custom sorting key for questionnaire indices.
+
+    Args:
+    index (str): The index string to be converted into a sorting key.
+
+    Returns:
+    list: A list of parts, with numeric parts converted to integers for proper sorting.
+    """
     parts = index.split('.')
     return [int(part) if part.isdigit() else part for part in parts]
 
 def manage_questions_page(questionnaire_path, selected_questionnaire):
+    """
+    Manage the questions page for a selected questionnaire.
+
+    Args:
+    questionnaire_path (str): The path to the questionnaires directory.
+    selected_questionnaire (str): The name of the selected questionnaire.
+    """
     st.title(f"Manage Questions for '{selected_questionnaire}'")
 
     questionnaire_dir = os.path.join("questionnaires", selected_questionnaire.replace(" ", "_"))
@@ -78,6 +94,14 @@ def manage_questions_page(questionnaire_path, selected_questionnaire):
     delete_selected_questions(selected_questions, questions_df, questions_file, dl)
 
 def add_new_questions(questions_df, questions_file, ad):
+    """
+    Add new questions to the questionnaire.
+
+    Args:
+    questions_df (pd.DataFrame): The DataFrame containing existing questions.
+    questions_file (str): The path to the CSV file storing the questions.
+    ad: The Streamlit column object for adding questions.
+    """
     with ad.popover("Add New Questions"):
         new_index = st.text_input("Enter the index for the new question (e.g., 1.3):")
         new_question = st.text_area("Enter the new question:")
@@ -94,6 +118,15 @@ def add_new_questions(questions_df, questions_file, ad):
                 st.warning("Please enter both an index and a question.")
 
 def delete_selected_questions(selected_questions, questions_df, questions_file, dl):
+    """
+    Delete selected questions from the questionnaire.
+
+    Args:
+    selected_questions (list or pd.DataFrame): The questions selected for deletion.
+    questions_df (pd.DataFrame): The DataFrame containing all questions.
+    questions_file (str): The path to the CSV file storing the questions.
+    dl: The Streamlit column object for deleting questions.
+    """
     with dl:
         if "delete_dialog_open" not in st.session_state:
             st.session_state.delete_dialog_open = False
@@ -148,6 +181,7 @@ def delete_selected_questions(selected_questions, questions_df, questions_file, 
             delete_questions_dialog()
 
 def table_size(questions_df):
+    """Calculate the appropriate height for the AgGrid table based on the number of rows."""
     row_height = 35
     header_height = 40
     min_height = 25
