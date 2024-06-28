@@ -1,8 +1,0 @@
-Project: project 1
-Report Name: jsvbzvlj
-Questionnaire: veq
-Number of Assigned Documents: 2
-
-Assigned Documents:
-- one
-- two

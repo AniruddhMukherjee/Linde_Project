@@ -124,81 +124,91 @@ def show_filtered_documents(project_file_path, questionnaire_name):
     return selected_docs
 
 def assign_documents_and_generate_report(questionnaire_name, selected_docs, report_name, selected_project, questionnaire_data):
-    # Create a directory for the report
-    report_dir = f"{selected_project}_{report_name}"
-    os.makedirs(report_dir, exist_ok=True)
+    success_messages = []
+    error_messages = []
 
-    # Assigned documents CSV
-    assigned_file = os.path.join(report_dir, "assigned_documents.csv")
+    try:
+        # Create a directory for the report
+        report_dir = f"{selected_project}_{report_name}"
+        os.makedirs(report_dir, exist_ok=True)
+        success_messages.append(f"Report directory created: {report_dir}")
 
-    # Handle different possible formats of selected_docs
-    if isinstance(selected_docs, pd.DataFrame):
-        doc_titles = selected_docs['Title'].tolist()
-    elif isinstance(selected_docs, list) and all(isinstance(doc, dict) for doc in selected_docs):
-        doc_titles = [doc['Title'] for doc in selected_docs]
-    elif isinstance(selected_docs, list) and all(isinstance(doc, str) for doc in selected_docs):
-        doc_titles = selected_docs
-    else:
-        st.error("Invalid format for selected documents")
-        return None
+        # Handle different possible formats of selected_docs
+        if isinstance(selected_docs, pd.DataFrame):
+            doc_titles = selected_docs['Title'].tolist()
+        elif isinstance(selected_docs, list) and all(isinstance(doc, dict) for doc in selected_docs):
+            doc_titles = [doc['Title'] for doc in selected_docs]
+        elif isinstance(selected_docs, list) and all(isinstance(doc, str) for doc in selected_docs):
+            doc_titles = selected_docs
+        else:
+            raise ValueError("Invalid format for selected documents")
 
-    assigned_documents = pd.DataFrame({
-        'Project': [selected_project] * len(doc_titles),
-        'Questionnaire': [questionnaire_name] * len(doc_titles),
-        'Documents': doc_titles
-    })
-    assigned_documents.to_csv(assigned_file, index=False)
+        # Assigned documents CSV
+        assigned_file = os.path.join(report_dir, "assigned_documents.csv")
+        assigned_documents = pd.DataFrame({
+            'Project': [selected_project] * len(doc_titles),
+            'Questionnaire': [questionnaire_name] * len(doc_titles),
+            'Documents': doc_titles
+        })
+        assigned_documents.to_csv(assigned_file, index=False)
+        success_messages.append(f"Documents assigned successfully! File saved as {assigned_file}")
 
-    # Included documents CSV
-    included_file = os.path.join(report_dir, "included_documents.csv")
-    if isinstance(selected_docs, pd.DataFrame):
-        selected_docs.to_csv(included_file, index=False)
-    else:
-        pd.DataFrame({'Title': doc_titles}).to_csv(included_file, index=False)
+        # Included documents CSV
+        included_file = os.path.join(report_dir, "included_documents.csv")
+        if isinstance(selected_docs, pd.DataFrame):
+            selected_docs.to_csv(included_file, index=False)
+        else:
+            pd.DataFrame({'Title': doc_titles}).to_csv(included_file, index=False)
+        success_messages.append(f"Included documents saved as {included_file}")
 
-    # Load the questions from the existing CSV file
-    questionnaire_dir = os.path.join("questionnaires", questionnaire_name.replace(" ", "_"))
-    questions_file = os.path.join(questionnaire_dir, f"{questionnaire_name.replace(' ', '_')}_questions.csv")
-    
-    if os.path.exists(questions_file):
-        questions_df = pd.read_csv(questions_file)
-    else:
-        st.error(f"Questions file not found: {questions_file}")
-        return None
+        # Load the questions from the existing CSV file
+        questionnaire_dir = os.path.join("questionnaires", questionnaire_name.replace(" ", "_"))
+        questions_file = os.path.join(questionnaire_dir, f"{questionnaire_name.replace(' ', '_')}_questions.csv")
+        
+        if os.path.exists(questions_file):
+            questions_df = pd.read_csv(questions_file)
+        else:
+            raise FileNotFoundError(f"Questions file not found: {questions_file}")
 
-    # Questionnaire completion CSV
-    completion_file = os.path.join(report_dir, "questionnaire_completion.csv")
-    
-    # Add empty 'Answer' and 'Reference' columns
-    questions_df['Answer'] = ''
-    questions_df['Reference'] = ''
-    
-    # Save the new DataFrame to the completion file
-    questions_df.to_csv(completion_file, index=False)
+        # Questionnaire completion CSV
+        completion_file = os.path.join(report_dir, "questionnaire_completion.csv")
+        questions_df['Answer'] = ''
+        questions_df['Reference'] = ''
+        questions_df.to_csv(completion_file, index=False)
+        success_messages.append(f"Questionnaire completion file saved as {completion_file}")
 
-    # Text report
-    report_text_file = os.path.join(report_dir, "report.txt")
-    with open(report_text_file, 'w') as f:
-        f.write(f"Project: {selected_project}\n")
-        f.write(f"Report Name: {report_name}\n")
-        f.write(f"Questionnaire: {questionnaire_name}\n")
-        f.write(f"Number of Assigned Documents: {len(doc_titles)}\n")
-        f.write("\nAssigned Documents:\n")
-        for doc in doc_titles:
-            f.write(f"- {doc}\n")
+        # Text report
+        report_text_file = os.path.join(report_dir, "report.txt")
+        with open(report_text_file, 'w') as f:
+            f.write(f"Project: {selected_project}\n")
+            f.write(f"Report Name: {report_name}\n")
+            f.write(f"Questionnaire: {questionnaire_name}\n")
+            f.write(f"Number of Assigned Documents: {len(doc_titles)}\n")
+            f.write("\nAssigned Documents:\n")
+            for doc in doc_titles:
+                f.write(f"- {doc}\n")
+        success_messages.append(f"Detailed report saved as {report_text_file}")
 
-    st.success(f"Report directory created: {report_dir}")
-    st.success(f"Documents assigned successfully! File saved as {assigned_file}")
-    st.success(f"Included documents saved as {included_file}")
-    st.success(f"Questionnaire completion file saved as {completion_file}")
-    st.success(f"Detailed report saved as {report_text_file}")
-    
-    return report_dir
+        # If all operations are successful, show a single success message
+        st.success("All parameters checked and report generated successfully!")
+        
+    except Exception as e:
+        error_messages.append(str(e))
+
+    # If there are any error messages, display them
+    for error in error_messages:
+        st.error(f"Error: {error}")
+
+    # If there are no errors but some operations failed, show individual success messages
+    if not error_messages and len(success_messages) < 5:
+        for message in success_messages:
+            st.success(message)
+
+    return report_dir if not error_messages else None
 
 
 def Reports_page():
     st.title("Reports")
-
     selected_project = st.session_state.get("selected_project", None)
 
     if not selected_project:
@@ -255,7 +265,8 @@ def display_reports_page(selected_project, project_data):
             project_paths_df = pd.read_csv(project_paths_path)
             project_file_path_df = project_paths_df.loc[project_paths_df['File Name'] == selected_project, 'File Path']
             if not project_file_path_df.empty:
-                project_file_path = project_file_path_df.iloc[0]
+                project_dir = project_file_path_df.iloc[0]
+                project_file_path = os.path.join(project_dir, f"{selected_project}.csv")
                 
                 selected_docs = show_filtered_documents(project_file_path, selected_questionnaire['name'])
 

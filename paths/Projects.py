@@ -1,44 +1,46 @@
 import os
 import pandas as pd
 import streamlit as st
+from PIL import Image
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
 def delete_project(project_name):
-    proceed = st.warning(f"Are you sure you want to delete the project '{project_name}'?", icon="⚠️")
-    if proceed:
-        # Delete the row from Data.csv
-        data = pd.read_csv("Data.csv")
-        data = data[data['Project'] != project_name]
-        data.to_csv("Data.csv", index=False, mode='w')
-        st.success(f"Project '{project_name}' deleted successfully!")
+    data = pd.read_csv("Data.csv")
+    data = data[data['Project'] != project_name]
+    data.to_csv("Data.csv", index=False)
 
-        # Delete the corresponding CSV file
-        project_paths_file = "project_paths.csv"
-        project_paths_path = os.path.join(os.getcwd(), project_paths_file)
-        project_paths_df = pd.read_csv(project_paths_path)
-        project_file_path_df = project_paths_df.loc[project_paths_df['File Name'] == project_name, 'File Path']
+    project_paths_file = "project_paths.csv"
+    project_paths_df = pd.read_csv(project_paths_file)
+    project_file_path_df = project_paths_df.loc[project_paths_df['File Name'] == project_name, 'File Path']
 
-        if not project_file_path_df.empty:
-            project_file_path = project_file_path_df.iloc[0]
-            if os.path.exists(project_file_path):
-                os.remove(project_file_path)
-            else:
-                st.warning(f"File path '{project_file_path}' does not exist.")
+    if not project_file_path_df.empty:
+        project_dir = project_file_path_df.iloc[0]
+        if os.path.exists(project_dir):
+            for filename in os.listdir(project_dir):
+                file_path = os.path.join(project_dir, filename)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                except Exception as e:
+                    st.error(f"Failed to delete {file_path}. Reason: {e}")
+            try:
+                os.rmdir(project_dir)
+            except Exception as e:
+                st.error(f"Failed to delete project directory. Reason: {e}")
 
-            # Remove the entry from project_paths.csv
-            project_paths_df = project_paths_df[project_paths_df['File Name'] != project_name]
-            project_paths_df.to_csv(project_paths_file, index=False)
-        else:
-            st.warning(f"No file path found for project '{project_name}'.")
+        project_paths_df = project_paths_df[project_paths_df['File Name'] != project_name]
+        project_paths_df.to_csv(project_paths_file, index=False)
+    
+    st.success(f"Project '{project_name}' deleted successfully!")
 
 def create_form():
     st.markdown("""
-<style>
-    [data-testid=stSidebar] {
-        background-color: #D2E1EB;
-    }
-</style>
-""", unsafe_allow_html=True)
+    <style>
+        [data-testid=stSidebar] {
+            background-color: #D2E1EB;
+        }
+    </style>
+    """, unsafe_allow_html=True)
     with st.sidebar.form("project_form"):
         st.header("Project Creation")
         project = st.text_input("Project Name")
@@ -49,49 +51,60 @@ def create_form():
         submit = st.form_submit_button("Submit")
 
         if submit:
+            if not project:
+                st.error("Project name cannot be empty.")
+                return
+
+            # Ensure Data.csv exists
+            if not os.path.exists("Data.csv"):
+                pd.DataFrame(columns=['Project', 'Description', 'Created By', 'Team Lead', 'Date']).to_csv("Data.csv", index=False)
+
+            # Add new project to Data.csv
             to_add = {'Project': [project], 'Description': [description], 'Created By': [created_by], 'Team Lead': [team_lead], 'Date': [date]}
             to_add = pd.DataFrame(to_add)
             to_add.to_csv("Data.csv", mode='a', header=False, index=False)
             st.success("Data added successfully")
 
-            file_name_file = f'{project}'
+            # Create project directory
+            project_dir = os.path.join(os.getcwd(), "projects", project)
+            os.makedirs(project_dir, exist_ok=True)
+
+            # Create project-specific CSV file
             file_details_file = f"{project}.csv"
-            file_details_path = os.path.join(os.getcwd(), file_details_file)
-            if not os.path.exists(file_details_file):
+            file_details_path = os.path.join(project_dir, file_details_file)
+            if not os.path.exists(file_details_path):
                 columns = ['fileID', 'Title', 'Summary', 'Category', 'Date', 'Version']
-                pd.DataFrame(columns=columns).to_csv(file_details_file, index=False)
+                pd.DataFrame(columns=columns).to_csv(file_details_path, index=False)
                 st.success(f"Container created successfully.")
 
-                # Store the file path and name in project_paths.csv
-                project_paths_path = "project_paths.csv"
-                if os.path.exists(project_paths_path):
-                    project_paths_df = pd.read_csv(project_paths_path)
-                else:
-                    project_paths_df = pd.DataFrame(columns=['File Name', 'File Path'])
+            # Update project_paths.csv
+            project_paths_path = "project_paths.csv"
+            if os.path.exists(project_paths_path):
+                project_paths_df = pd.read_csv(project_paths_path)
+            else:
+                project_paths_df = pd.DataFrame(columns=['File Name', 'File Path'])
 
-                new_row = pd.DataFrame({'File Name': [file_name_file], 'File Path': [file_details_path]})
-                project_paths_df = pd.concat([project_paths_df, new_row], ignore_index=True)
-                project_paths_df.to_csv(project_paths_path, index=False)
-                st.success(f"File path stored")
+            new_row = pd.DataFrame({'File Name': [project], 'File Path': [project_dir]})
+            project_paths_df = pd.concat([project_paths_df, new_row], ignore_index=True)
+            project_paths_df.to_csv(project_paths_path, index=False)
+
+            st.success(f"Project '{project}' created successfully.")
 
 def enter_values():
     show_content = st.session_state.get('show_content', False)
 
-    # Create a button to toggle the visibility of the content
     if st.button('Create Project'):
         show_content = not show_content
         st.session_state['show_content'] = show_content
 
-    # Display the content based on the state variable
     if show_content:
         create_form()
 
 def table_size(data):
-    # Calculate the height based on the number of rows
-    row_height = 35  # Approximate height of each row in pixels
-    header_height = 40  # Approximate height of the header in pixels
-    min_height = 50  # Minimum height of the grid
-    max_height = 600  # Maximum height of the grid
+    row_height = 35
+    header_height = 40
+    min_height = 50
+    max_height = 600
     calculated_height = min(max(min_height, len(data) * row_height + header_height), max_height)
     return calculated_height
 
@@ -99,11 +112,10 @@ def Table_data():
     global data
     data = pd.read_csv("Data.csv")
     gb = GridOptionsBuilder.from_dataframe(data)
-    gb.configure_default_column(editable=False)  # Make all columns non-editable by default
-    gb.configure_column("Description", editable=True)  # Make the "Description" column editable
-    gb.configure_columns(["Project", "Created By", "Team Lead", "Date"], editable=False)  # Explicitly make these columns non-editable
-
-    # Add a radio button for selection
+    gb.configure_default_column(editable=False)
+    gb.configure_column("Description", editable=True)
+    gb.configure_columns(["Project", "Created By", "Team Lead", "Date"], editable=False)
+    
     gb.configure_selection(selection_mode="single", use_checkbox=True)
 
     gridOptions = gb.build()
@@ -144,9 +156,6 @@ def Table_data():
             updated_data.to_csv("Data.csv", index=False)
             st.success("Data saved successfully!")
 
-    with col2:
-        st.write("")
-
     with col3:
         #dialog_placeholder = st.empty()
 
@@ -177,7 +186,25 @@ def Table_data():
             delete_project_dialog()
 
 def projects_page():
+    SIDEBAR_LOGO = "linde-text.png"
+    MAINPAGE_LOGO = "linde_india_ltd_logo.jpeg"
+
+    sidebar_logo = SIDEBAR_LOGO
+    main_body_logo = MAINPAGE_LOGO
+
+    st.markdown("""
+<style>
+[data-testid="stSidebarNav"] > div:first-child > img {
+    width: 900px; /* Adjust the width as needed */
+    height: auto; /* Maintain aspect ratio */
+}
+</style>
+""", unsafe_allow_html=True)
+    
+    st.logo(sidebar_logo, icon_image=main_body_logo)
     st.title("Projects")
     cr, dele = st.columns(2)
     enter_values()
     Table_data()
+
+    

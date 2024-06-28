@@ -25,7 +25,8 @@ def view_reports_page(selected_project, selected_questionnaire):
     if reports:
         # Create an option menu to select reports
         st.subheader("Select Report")
-        selected_report = st.selectbox("Select Report", 
+        sel,dele = st.columns([3,1])
+        selected_report = st.selectbox("Select Report",
                                        options=[report['name'] for report in reports],
                                        format_func=lambda x: f"{x}")
         
