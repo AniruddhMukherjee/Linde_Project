@@ -282,11 +282,11 @@ def Reports_page():
     if st.session_state.get('view_reports', False):
         if st.sidebar.button("Back to Reports"):
             st.session_state.view_reports = False
-            st.experimental_rerun()
+            st.rerun()
     else:
         if st.sidebar.button("View Reports"):
             st.session_state.view_reports = True
-            st.experimental_rerun()
+            st.rerun()
 
     if st.session_state.get('view_reports', False):
         selected_questionnaire = st.session_state.get('selected_questionnaire', None)
