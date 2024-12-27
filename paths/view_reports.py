@@ -1,6 +1,8 @@
 import streamlit as st
-from st_aggrid import AgGrid, GridOptionsBuilder
 import pandas as pd
+import os
+import shutil
+from st_aggrid import AgGrid, GridOptionsBuilder
 import io
 
 def view_reports_page(selected_project, selected_questionnaire):
@@ -8,8 +10,8 @@ def view_reports_page(selected_project, selected_questionnaire):
     Display the main page for viewing reports of a selected project.
 
     Args:
-    selected_project (str): The name of the selected project
-    selected_questionnaire (str): The name of the selected questionnaire
+    selected_project (str): The name of the selected project.
+    selected_questionnaire (str): The name of the selected questionnaire.
     """
     SIDEBAR_LOGO = "linde-text.png"
     MAINPAGE_LOGO = "linde_india_ltd_logo.jpeg"
@@ -18,39 +20,40 @@ def view_reports_page(selected_project, selected_questionnaire):
     main_body_logo = MAINPAGE_LOGO
 
     st.markdown("""
-    <style>
-    [data-testid="stSidebarNav"] > div:first-child > img {
-        width: 900px;
-        height: auto;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+[data-testid="stSidebarNav"] > div:first-child > img {
+    width: 900px; /* Adjust the width as needed */
+    height: auto; /* Maintain aspect ratio */
+}
+</style>
+""", unsafe_allow_html=True)
     
     st.logo(sidebar_logo, icon_image=main_body_logo)
+    #st.title(f"View Reports for {selected_project}")
+    data = pd.read_csv("Data.csv")
+    project_data = data[data['Project'] == selected_project].iloc[0]
+    st.sidebar.title("Project Information")
+    st.sidebar.write(f"**Name:** '{selected_project}'")
+    st.sidebar.write(f"**Team Lead:** {project_data['Team Lead']}")
+    st.sidebar.write(f"**Description:** {project_data['Description']}")
+    st.sidebar.divider()
     
-    # Get project details from database
-    project_data = st.session_state.db_manager.get_project_details(selected_project)
-    if project_data is not None:
-        st.sidebar.title("Project Information")
-        st.sidebar.write(f"**Name:** '{selected_project}'")
-        st.sidebar.write(f"**Team Lead:** {project_data['team_lead']}")
-        st.sidebar.write(f"**Description:** {project_data['description']}")
-        st.sidebar.divider()
-    
-    # Query reports from database
-    reports = get_reports_from_db(selected_project)
+    # Find generated reports
+    reports = find_reports(selected_project)
     
     if reports:
+        # Create an option menu to select reports
         st.subheader("Select Report")
-        sel, dele = st.columns([3,1])
+        sel,dele = st.columns([3,1])
         selected_report = st.selectbox("Select Report",
-                                     options=[report['name'] for report in reports],
-                                     format_func=lambda x: f"{x}")
+                                       options=[report['name'] for report in reports],
+                                       format_func=lambda x: f"{x}")
         
         if selected_report:
             report = next(r for r in reports if r['name'] == selected_report)
             display_report_details(report, selected_project, selected_questionnaire)
             
+            # Delete report functionality
             if "delete_report_open" not in st.session_state:
                 st.session_state.delete_report_open = False
 
@@ -62,51 +65,69 @@ def view_reports_page(selected_project, selected_questionnaire):
     else:
         st.info("No reports found for this project.")
 
-def get_reports_from_db(project_name):
+def find_reports(project_name):
     """
-    Get all reports for a project from the database.
-    
+    Find all reports associated with a given project.
+
     Args:
-    project_name (str): The name of the project
-    
+    project_name (str): The name of the project to find reports for.
+
     Returns:
-    list: List of report dictionaries
+    list: A list of dictionaries containing report information.
     """
-    conn = st.session_state.db_manager.get_connection()
-    try:
-        query = """
-        SELECT id, name, questionnaire, num_docs, created_at
-        FROM reports
-        WHERE project = ?
-        """
-        df = pd.read_sql_query(query, conn, params=(project_name,))
-        
-        reports = []
-        for _, row in df.iterrows():
-            reports.append({
-                'id': row['id'],
-                'name': row['name'],
-                'questionnaire': row['questionnaire'],
-                'num_docs': row['num_docs'],
-                'created_at': row['created_at']
-            })
-        return reports
-    except Exception as e:
-        st.error(f"Error retrieving reports: {e}")
-        return []
-    finally:
-        conn.close()
+    reports = []
+    for file in os.listdir():
+        if file.startswith(f"{project_name}_") and os.path.isdir(file):
+            report_name = file.split('_', 1)[1]
+            csv_file = os.path.join(file, "included_documents.csv")
+            txt_file = os.path.join(file, "report.txt")
+            completion_file = os.path.join(file, "questionnaire_completion.csv")
+            if os.path.exists(csv_file) and os.path.exists(txt_file) and os.path.exists(completion_file):
+                reports.append({
+                    'name': report_name,
+                    'dir': file,
+                    'csv_path': csv_file,
+                    'txt_path': txt_file,
+                    'completion_path': completion_file
+                })
+    return reports
 
 def table_size_drd(df):
-    """Calculate the appropriate height for the AgGrid table."""
-    row_height = 35
-    header_height = 40
-    min_height = 50
-    max_height = 600
-    return min(max(min_height, len(df) * row_height + header_height), max_height)
+    """
+    Calculate the appropriate height for the AgGrid table displaying included documents.
+    """
+    # Calculate the height based on the number of rows
+    row_height = 35  # Approximate height of each row in pixels
+    header_height = 40  # Approximate height of the header in pixels
+    min_height = 50  # Minimum height of the grid
+    max_height = 600  # Maximum height of the grid
+    calculated_height = min(max(min_height, len(df) * row_height + header_height), max_height)
+    return calculated_height
+
+def table_size_drd2(completion_df):
+    """Calculate the appropriate height for the AgGrid table displaying questionnaire completion."""
+    # Calculate the height based on the number of rows
+    row_height = 35  # Approximate height of each row in pixels
+    header_height = 40  # Approximate height of the header in pixels
+    min_height = 50  # Minimum height of the grid
+    max_height = 600  # Maximum height of the grid
+    calculated_height = min(max(min_height, len(completion_df) * row_height + header_height), max_height)
+    return calculated_height
 
 def generate_excel_report(project_name, report, project_info, included_docs_df, completion_df):
-    """Generate an Excel report with project details and data."""
+    """
+    Generate an Excel report containing project details, included documents, and questionnaire completion.
+
+    Args:
+    project_name (str): The name of the project.
+    report (dict): The report information.
+    project_info (pd.Series): The project information.
+    included_docs_df (pd.DataFrame): The DataFrame of included documents.
+    completion_df (pd.DataFrame): The DataFrame of questionnaire completion.
+
+    Returns:
+    bytes: The Excel file content as bytes.
+    """
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         workbook = writer.book
@@ -116,20 +137,21 @@ def generate_excel_report(project_name, report, project_info, included_docs_df, 
         worksheet.write(0, 0, 'Project Name:')
         worksheet.write(0, 1, project_name)
         worksheet.write(1, 0, 'Team Lead:')
-        worksheet.write(1, 1, project_info['team_lead'])
+        worksheet.write(1, 1, project_info['Team Lead'])
         worksheet.write(2, 0, 'Description:')
-        worksheet.write(2, 1, project_info['description'])
+        worksheet.write(2, 1, project_info['Description'])
 
         # Included documents table
         start_row = 4
         worksheet.write(start_row, 0, 'Included Documents:')
         included_docs_df.to_excel(writer, sheet_name='Report', startrow=start_row + 1, index=False)
         
+        # Document count
         doc_count = len(included_docs_df)
         worksheet.write(start_row + doc_count + 2, 0, f'Total documents: {doc_count}')
 
         # Questionnaire completion table
-        start_row = start_row + doc_count + 8
+        start_row = start_row + doc_count + 8  # 5 rows after the count
         worksheet.write(start_row, 0, 'Questionnaire Completion:')
         completion_df.to_excel(writer, sheet_name='Report', startrow=start_row + 1, index=False)
 
@@ -145,86 +167,91 @@ def generate_excel_report(project_name, report, project_info, included_docs_df, 
     return output.getvalue()
 
 def display_report_details(report, project_name, selected_questionnaire):
-    """Display the details of a selected report."""
-    conn = st.session_state.db_manager.get_connection()
-    try:
-        # Get included documents
-        query = """
-        SELECT content
-        FROM report_documents
-        WHERE report_id = ? AND type = 'included'
-        """
-        included_docs = pd.read_sql_query(query, conn, params=(report['id'],))
-        if not included_docs.empty:
-            included_docs_df = pd.DataFrame(eval(included_docs['content'].iloc[0]))
-        else:
-            included_docs_df = pd.DataFrame()
+    """
+    Display the details of a selected report, including included documents and questionnaire completion.
 
-        # Get questionnaire completion data
-        query = """
-        SELECT question_id, answer, reference
-        FROM questionnaire_responses
-        WHERE report_id = ?
-        """
-        completion_df = pd.read_sql_query(query, conn, params=(report['id'],))
+    Args:
+    report (dict): The report information.
+    project_name (str): The name of the project.
+    selected_questionnaire (str): The name of the selected questionnaire.
+    """
+    #st.write(f"## Report for Project: {project_name}")
+    with open(report['txt_path'], 'r') as f:
+        content = f.readlines()
+    
+    # Extract report details
+    report_details = {line.split(': ')[0]: line.split(': ')[1].strip() for line in content[:4]}
+    
+    # Display report details in the sidebar
+    st.sidebar.title("Report Details")
+    for key, value in report_details.items():
+        st.sidebar.write(f"**{key}:** {value}")
+    st.sidebar.divider()
+    
+    # Display included documents
+    st.subheader("Included Documents")
+    df = pd.read_csv(report['csv_path'])
+    
+    gb = GridOptionsBuilder.from_dataframe(df)
+    gb.configure_default_column(editable=False, width=150)
+    gb.configure_column("Summary", width=300)
+    gridOptions = gb.build()
+    
+    AgGrid(df, 
+           gridOptions=gridOptions, 
+           width='100%',
+           fit_columns_on_grid_load=True,
+           enable_enterprise_modules=False,
+           height=table_size_drd(df))
+    
+    # Display questionnaire completion data
+    st.subheader("Questionnaire Completion")
+    completion_df = pd.read_csv(report['completion_path'])
+    
+    gb_completion = GridOptionsBuilder.from_dataframe(completion_df)
+    gb_completion.configure_default_column(editable=True, width=150)
+    gb_completion.configure_column("index", editable=False, width=100)
+    gb_completion.configure_column("questions", editable=False, width=300)
+    gridOptions_completion = gb_completion.build()
+    
+    AgGrid(completion_df, 
+           gridOptions=gridOptions_completion, 
+           height=table_size_drd2(completion_df), 
+           width='100%',
+           fit_columns_on_grid_load=True,
+           enable_enterprise_modules=False)
 
-        # Display report details in sidebar
-        st.sidebar.title("Report Details")
-        st.sidebar.write(f"**Report Name:** {report['name']}")
-        st.sidebar.write(f"**Created At:** {report['created_at']}")
-        st.sidebar.write(f"**Number of Documents:** {report['num_docs']}")
-        st.sidebar.divider()
+    # Generate Excel report
+    project_data = pd.read_csv("Data.csv")
+    project_info = project_data[project_data['Project'] == project_name].iloc[0]
+    excel_data = generate_excel_report(project_name, report, project_info, df, completion_df)
 
-        # Display included documents
-        st.subheader("Included Documents")
-        if not included_docs_df.empty:
-            gb = GridOptionsBuilder.from_dataframe(included_docs_df)
-            gb.configure_default_column(editable=False, width=150)
-            gb.configure_column("Summary", width=300)
-            gridOptions = gb.build()
-            
-            AgGrid(included_docs_df,
-                  gridOptions=gridOptions,
-                  width='100%',
-                  fit_columns_on_grid_load=True,
-                  enable_enterprise_modules=False,
-                  height=table_size_drd(included_docs_df))
+    # Create download button
+    st.download_button(
+        label="Download Excel Report",
+        data=excel_data,
+        file_name="project_report.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
-        # Display questionnaire completion
-        st.subheader("Questionnaire Completion")
-        if not completion_df.empty:
-            gb_completion = GridOptionsBuilder.from_dataframe(completion_df)
-            gb_completion.configure_default_column(editable=True, width=150)
-            gb_completion.configure_column("question_id", editable=False, width=100)
-            gridOptions_completion = gb_completion.build()
-            
-            AgGrid(completion_df,
-                  gridOptions=gridOptions_completion,
-                  height=table_size_drd(completion_df),
-                  width='100%',
-                  fit_columns_on_grid_load=True,
-                  enable_enterprise_modules=False)
+    # Add a divider before the delete button
+    st.divider()
 
-        # Generate Excel report
-        project_info = st.session_state.db_manager.get_project_details(project_name)
-        excel_data = generate_excel_report(project_name, report, project_info, included_docs_df, completion_df)
+    # Delete report functionality
+    if "delete_report_open" not in st.session_state:
+        st.session_state.delete_report_open = False
 
-        st.download_button(
-            label="Download Excel Report",
-            data=excel_data,
-            file_name="project_report.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-        st.divider()
-
-    except Exception as e:
-        st.error(f"Error displaying report details: {e}")
-    finally:
-        conn.close()
+        if st.session_state.delete_report_open:
+            delete_report_dialog(report, project_name)
 
 def delete_report_dialog(report, project_name):
-    """Display confirmation dialog for deleting a report."""
+    """
+    Display a confirmation dialog for deleting a report.
+
+    Args:
+    report (dict): The report information.
+    project_name (str): The name of the project.
+    """
     @st.experimental_dialog("Delete Report")
     def delete_report_dialog_content():
         st.write(f"Are you sure you want to delete the report '{report['name']}' for project '{project_name}'?")
@@ -233,26 +260,18 @@ def delete_report_dialog(report, project_name):
             st.session_state.delete_report_open = False
             st.rerun()
         if col2.button("Delete"):
-            delete_report(report['id'])
+            delete_report(report)
             st.success(f"Report '{report['name']}' has been deleted.")
             st.session_state.delete_report_open = False
             st.rerun()
 
     delete_report_dialog_content()
 
-def delete_report(report_id):
-    """Delete a report from the database."""
-    conn = st.session_state.db_manager.get_connection()
-    cursor = conn.cursor()
-    try:
-        # Delete report documents first (due to foreign key constraint)
-        cursor.execute("DELETE FROM report_documents WHERE report_id = ?", (report_id,))
-        # Delete questionnaire responses
-        cursor.execute("DELETE FROM questionnaire_responses WHERE report_id = ?", (report_id,))
-        # Delete the report
-        cursor.execute("DELETE FROM reports WHERE id = ?", (report_id,))
-        conn.commit()
-    except Exception as e:
-        st.error(f"Error deleting report: {e}")
-    finally:
-        conn.close()
+def delete_report(report):
+    """
+    Delete a report and its associated directory.
+
+    Args:
+    report (dict): The report information containing the directory to be deleted.
+    """
+    shutil.rmtree(report['dir'])
