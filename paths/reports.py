@@ -311,7 +311,7 @@ def display_reports_page(selected_project, project_data):
     st.markdown("""
 <style>
 [data-testid="stSidebarNav"] > div:first-child > img {
-    width: 900px; /* Adjust the width as needed */
+    width: 5000px; /* Adjust the width as needed */
     height: auto; /* Maintain aspect ratio */
 }
 </style>

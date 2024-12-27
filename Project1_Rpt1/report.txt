@@ -1,0 +1,7 @@
+Project: Project1
+Report Name: Rpt1
+Questionnaire: ques1
+Number of Assigned Documents: 1
+
+Assigned Documents:
+- signedLetter
