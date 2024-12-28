@@ -3,10 +3,10 @@ import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder
 import io
 import json
-import database_manager as db_manager
+from database_manager import db_manager
 from datetime import datetime
     
-def view_reports_page(selected_project, selected_questionnaire, db_manager):
+def view_reports_page(selected_project,selected_questionnaire):
     """
     Display the main page for viewing reports of a selected project.
 
@@ -54,8 +54,7 @@ def view_reports_page(selected_project, selected_questionnaire, db_manager):
         # Create columns for report selection and delete button
         col1, col2 = st.columns([3,1])
         
-        with col1:
-            selected_report = st.selectbox(
+        selected_report = st.selectbox(
                 "Choose a report to view",
                 options=[report['name'] for report in reports],
                 format_func=lambda x: f"{x}"
@@ -64,29 +63,16 @@ def view_reports_page(selected_project, selected_questionnaire, db_manager):
         if selected_report:
             report = next(r for r in reports if r['name'] == selected_report)
             
-            # Initialize session state for delete dialog if not exists
-            if "delete_report_open" not in st.session_state:
-                st.session_state.delete_report_open = False
-            
-            with col2:
-                if st.button("Delete Report", key="delete1"):
-                    st.session_state.delete_report_open = True
-
-            if st.session_state.delete_report_open:
-                delete_report_dialog_db(report, selected_project, db_manager)
-            
             # Display report details
             try:
-                display_report_details_db(report, selected_project, selected_questionnaire, db_manager)
+                display_report_details_db(report, report['id'], selected_project, selected_project, selected_questionnaire, db_manager)
             except Exception as e:
                 st.error(f"Error displaying report details: {str(e)}")
                 st.write("Please check the report data and try again.")
     else:
         st.info("No reports found for this project.")
-        if st.button("Create New Report"):
-            st.session_state.page = "create_report"
-            st.rerun()
-def find_reports_db(db_manager, project_name):
+
+def find_reports_db(db_manager,project_name):
     """
     Find all reports associated with a given project from the database.
 
@@ -147,7 +133,7 @@ def get_report_documents(db_manager, report_id, doc_type):
     finally:
         conn.close()
 
-def display_report_details_db(report, project_name, selected_questionnaire, db_manager):
+def display_report_details_db(report, report_id, project_name, selected_project, selected_questionnaire, db_manager):
     """
     Display the details of a selected report from the database.
 
@@ -173,7 +159,8 @@ def display_report_details_db(report, project_name, selected_questionnaire, db_m
         
         gb = GridOptionsBuilder.from_dataframe(df)
         gb.configure_default_column(editable=False, width=150)
-        gb.configure_column("Summary", width=300)
+        gb.configure_column("project", hide = True)
+        #gb.configure_column("Summary", width=300)
         gridOptions = gb.build()
         
         AgGrid(df,
@@ -187,26 +174,22 @@ def display_report_details_db(report, project_name, selected_questionnaire, db_m
     st.subheader("Questionnaire Completion")
     conn = db_manager.get_connection()
     try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT question_id, question_text, answer, reference
+            FROM questionnaire_responses
+            WHERE report_id =?
+        """, (report_id,))
         # Fixed SQL query with properly quoted column alias
-        completion_df = pd.read_sql_query("""
-            SELECT 
-                qr.question_id as 'question_number',
-                qq.question as 'questions',
-                qr.answer,
-                qr.reference
-            FROM questionnaire_responses qr
-            JOIN questionnaire_questions qq 
-                ON qr.question_id = qq.identifier 
-                AND qq.questionnaire_name = ?
-            WHERE qr.report_id = ?
-            ORDER BY CAST(qr.question_id AS INTEGER)
-        """, conn, params=(selected_questionnaire, report['id']))
+        completion_data = cursor.fetchall()
+        completion_df = pd.DataFrame(completion_data, columns=['question_id', 'question_text', 'answer', 'reference'])
         
         if not completion_df.empty:
             gb_completion = GridOptionsBuilder.from_dataframe(completion_df)
             gb_completion.configure_default_column(editable=True, width=150)
-            gb_completion.configure_column("index", editable=False, width=100)
-            gb_completion.configure_column("questions", editable=False, width=300)
+            #gb_completion.configure_column("index", editable=False, width=100)
+            gb_completion.configure_column("question_text", editable=False, width=300)
+            gb_completion.configure_column("question_text", headerName="Questions")
             gridOptions_completion = gb_completion.build()
             
             AgGrid(completion_df,
@@ -229,8 +212,21 @@ def display_report_details_db(report, project_name, selected_questionnaire, db_m
         file_name=f"{project_name}_{report['name']}_report.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+    
 
     st.divider()
+    col1, col2 = st.columns([1,3])    
+        # Initialize session state for delete dialog if not exists
+    if "delete_report_open" not in st.session_state:
+        st.session_state.delete_report_open = False
+        
+    with col1:
+        if st.button("Delete Report", key="delete1"):
+            st.session_state.delete_report_open = True
+            
+    if st.session_state.delete_report_open:
+        delete_report_dialog_db(report, selected_project, db_manager)
+
 
 def delete_report_dialog_db(report, project_name, db_manager):
     """

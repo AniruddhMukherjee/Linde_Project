@@ -39,6 +39,8 @@ def manage_questions_page(questionnaire_path, selected_questionnaire):
         st.write("No existing questions found. Please add new questions.")
     else:
         gb = GridOptionsBuilder.from_dataframe(questions_df)
+        gb.configure_column("identifier", headerName="Index")
+        gb.configure_column("question", editable=False, width=300)
         gb.configure_selection(selection_mode="multiple", use_checkbox=True)
         gb.configure_default_column(editable=False)
         gridOptions = gb.build()

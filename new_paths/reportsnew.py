@@ -2,12 +2,13 @@ import streamlit as st
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 import json
+import sqlite3
 from datetime import datetime
 from database_manager import db_manager
 from new_paths.view_reportsnew import view_reports_page
 
 def questionnaire_table_size(questionnaire_data):
-    """Keep the original implementation as it's just UI calculation"""
+    """Calculate the appropriate height for the questionnaire AgGrid table."""
     row_height = 35
     header_height = 40
     min_height = 50
@@ -16,28 +17,19 @@ def questionnaire_table_size(questionnaire_data):
     return calculated_height
 
 def enter_name():
-    """Keep the original implementation as it's just UI input"""
+    """Display an input field for the user to enter a report name."""
     st.subheader("1. Enter Report Name:")
     report_name = st.text_input("Enter Report Name:")
     if report_name:
         return report_name
     return None
 
-def load_questionnaires(questionnaire_path):
-    """Modified to load from database instead of CSV"""
-    try:
-        questionnaire_data = db_manager.get_all_questionnaires()
-        return questionnaire_data
-    except Exception as e:
-        st.error(f"Error loading questionnaires: {str(e)}")
-        return None
-
-def show_questionnaires(questionnaire_path):
-    """Modified to use database instead of CSV"""
+def show_questionnaires():
+    """Display questionnaires in an AgGrid table and handle selection."""
     questionnaire_data = db_manager.get_all_questionnaires()
     
     if questionnaire_data.empty:
-        st.warning("No questionnaires found in the database.")
+        st.error("No questionnaires found in the database.")
         return None
     
     gb = GridOptionsBuilder.from_dataframe(questionnaire_data)
@@ -61,14 +53,7 @@ def show_questionnaires(questionnaire_path):
     
     if selected_rows is not None and len(selected_rows) > 0:
         selected_questionnaire = selected_rows.iloc[0]
-        st.sidebar.title("Questionnaire Details")
-        st.sidebar.write(f"**Name:** {selected_questionnaire['name']}")
-        st.sidebar.write(f"**Category:** {selected_questionnaire['category']}")
-        st.sidebar.write(f"**User:** {selected_questionnaire['user']}")
-        st.sidebar.write(f"**Description:** {selected_questionnaire['description']}")
-        st.sidebar.write(f"**Date:** {selected_questionnaire['date']}")
-        st.sidebar.divider()
-        
+        display_questionnaire_details(selected_questionnaire)
         st.session_state.selected_category = selected_questionnaire['category']
         return selected_questionnaire
     
@@ -76,34 +61,35 @@ def show_questionnaires(questionnaire_path):
     st.session_state.selected_category = None
     return None
 
-def documents_table_size(document_data):
-    """Calculate the optimal height for the documents table based on the number of rows."""
-    row_height = 35
-    header_height = 40
-    min_height = 50
-    max_height = 600
-    calculated_height = min(max(min_height, len(document_data) * row_height + header_height), max_height)
-    return calculated_height
+def display_questionnaire_details(questionnaire):
+    """Display questionnaire details in the sidebar."""
+    st.sidebar.title("Questionnaire Details")
+    st.sidebar.write(f"**Name:** {questionnaire['name']}")
+    st.sidebar.write(f"**Category:** {questionnaire['category']}")
+    st.sidebar.write(f"**User:** {questionnaire['user']}")
+    st.sidebar.write(f"**Description:** {questionnaire['description']}")
+    st.sidebar.write(f"**Date:** {questionnaire['date']}")
+    st.sidebar.divider()
 
-def show_filtered_documents(questionnaire_name):
-    """Modified to use database instead of CSV"""
+def show_filtered_documents(project_name):
+    """Display filtered documents based on the selected questionnaire category."""
     if 'selected_category' not in st.session_state or st.session_state.selected_category is None:
         st.warning("Please select a questionnaire first to view relevant documents.")
         return None
 
+    # Query file_details table for documents matching the category
     conn = db_manager.get_connection()
     query = """
-    SELECT * FROM file_details 
-    WHERE project = ? AND category LIKE ?
+        SELECT * FROM file_details 
+        WHERE project = ? AND category LIKE ?
     """
-    
     filtered_data = pd.read_sql_query(
         query, 
         conn, 
-        params=(st.session_state.get("selected_project"), 
-                f"%{st.session_state.selected_category}%")
+        params=(project_name, f"%{st.session_state.selected_category}%")
     )
-    
+    conn.close()
+
     if filtered_data.empty:
         st.info(f"No documents found for the category: {st.session_state.selected_category}")
         return None
@@ -126,85 +112,115 @@ def show_filtered_documents(questionnaire_name):
     )
 
     selected_docs = ag_response["selected_rows"]
+    if selected_docs is not None and len(selected_docs) > 0:
+        st.write("Client documents to assign to the questionnaire:")
+        st.table(pd.DataFrame(selected_docs))
+        return selected_docs
     
-    if selected_docs is None or len(selected_docs) == 0:
-        st.warning("Please select one or more documents to proceed.")
-        return None
-    
-    st.write("Client documents to assign to the questionnaire:")
-    st.table(pd.DataFrame(selected_docs))
-    
-    return selected_docs
+    return None
 
-def assign_documents_and_generate_report(questionnaire_name, selected_docs, report_name, selected_project, questionnaire_data):
-    """Modified to use database instead of file system"""
+def documents_table_size(filtered_data):
+    """Calculate the appropriate height for the documents AgGrid table."""
+    row_height = 35
+    header_height = 40
+    min_height = 50
+    max_height = 600
+    calculated_height = min(max(min_height, len(filtered_data) * row_height + header_height), max_height)
+    return calculated_height
+
+def create_report(db_manager, project, questionnaire_name, report_name, selected_docs):
+    """Create a new report in the database."""
     try:
-        # Create report in database
-        docs_to_process = []
-        if isinstance(selected_docs, dict):
-            docs_to_process.append(selected_docs)
-        elif isinstance(selected_docs, list):
-            docs_to_process = selected_docs
-        
-        
-        if docs_to_process:
-            st.warning("No valid documents selected. Please select some documents to generate a report.")
-            return None
-        
-        num_docs = len(selected_docs)
+        # Debug print to check the incoming data
+        #st.write("Debug - Selected docs:", selected_docs)
+        #st.write("Debug - Type of selected_docs:", type(selected_docs))
+
+        # Create the report entry
         report_id = db_manager.create_report(
-            selected_project,
-            questionnaire_name,
-            report_name,
-            num_docs
+            project=project,
+            questionnaire=questionnaire_name,
+            name=report_name,
+            num_docs=len(selected_docs)
         )
-        
-        if report_id is None:
-            st.error("Failed to create report in database")
+
+        if not report_id:
+            st.error("Failed to create report entry.")
             return None
 
-        # Save assigned documents
-        doc_titles = [doc.get('title', doc.get('title')) for doc in docs_to_process]
-        db_manager.save_assigned_documents(report_id, doc_titles)
+        # Handle different formats of selected_docs
+        if isinstance(selected_docs, pd.DataFrame):
+            doc_titles = selected_docs['title'].tolist()
+            docs_to_save = selected_docs.to_dict('records')
+        elif isinstance(selected_docs, list):
+            # If it's a list of dictionaries
+            if selected_docs and isinstance(selected_docs[0], dict):
+                doc_titles = [doc.get('title', doc.get('Title', '')) for doc in selected_docs]
+                docs_to_save = selected_docs
+            else:
+                # If it's a simple list of strings
+                doc_titles = selected_docs
+                docs_to_save = [{'title': title} for title in selected_docs]
+        else:
+            raise ValueError(f"Unexpected type for selected_docs: {type(selected_docs)}")
 
-        # Save included documents (full document details)
-        db_manager.save_included_documents(report_id, docs_to_process)
+        try:
+            # Save assigned documents
+            #st.write("Debug - Saving doc titles:", doc_titles)
+            db_manager.save_assigned_documents(report_id, doc_titles)
 
-        # Get questionnaire questions and create completion entries
-        questions_df = db_manager.get_questionnaire_questions(questionnaire_name)
-        
-        if questions_df is not None and not questions_df.empty:
-            db_manager.update_questionnaire_completion(questions_df, report_id)
-        
-        st.success("Report generated successfully!")
+            # Save included documents
+            #st.write("Debug - Saving full docs:", docs_to_save)
+            db_manager.save_included_documents(report_id, docs_to_save)
+
+        except Exception as e:
+            st.error(f"Error saving documents: {str(e)}")
+            # You might want to delete the report here since document saving failed
+            return None
+
+        try:
+            # Get questionnaire questions and create empty responses
+            questions_df = db_manager.get_questionnaire_questions(questionnaire_name)
+            if questions_df.empty:
+                st.warning("No questions found for the questionnaire.")
+            else:
+                # Update questionnaire completion with both question_id and question_text
+                db_manager.update_questionnaire_completion(questions_df, report_id)
+
+        except sqlite3.Error as e:
+            st.error(f"Database error: {e}")
+            # You might want to delete the report here since questionnaire setup failed
+            return None
+        except Exception as e:
+            st.error(f"Error setting up questionnaire: {str(e)}")
+            return None
+
+        st.success("Report created successfully!")
         return report_id
 
     except Exception as e:
-        st.write(e)
-        import traceback
-        print(traceback.format_exc())
+        st.error(f"Error creating report: {str(e)}")
+        st.error(f"Error type: {type(e)}")
+        st.error(f"Error details: {str(e.__dict__) if hasattr(e, '__dict__') else str(e)}")
         return None
 
-
-
 def Reports_page():
-    """Main function remains largely the same, but uses database for data retrieval"""
+    """Main function to render the Reports page."""
     st.title("Reports")
+    
     selected_project = st.session_state.get("selected_project", None)
 
     if not selected_project:
         st.warning("Please select a project first.")
         return
 
-    # Get project data from database instead of CSV
-    project_data = db_manager.get_project_details(selected_project)
-    if project_data is None:
-        st.error("Project not found in database.")
+    project_details = db_manager.get_project_details(selected_project)
+    if project_details is None:
+        st.error("Project details not found.")
         return
 
-    # Rest of the view toggle logic remains the same
+    # Add view/create reports toggle
     if st.session_state.get('view_reports', False):
-        if st.sidebar.button("Back to Reports"):
+        if st.sidebar.button("Create Reports"):
             st.session_state.view_reports = False
             st.rerun()
     else:
@@ -212,14 +228,16 @@ def Reports_page():
             st.session_state.view_reports = True
             st.rerun()
 
+    
     if st.session_state.get('view_reports', False):
         selected_questionnaire = st.session_state.get('selected_questionnaire', None)
-        view_reports_page(selected_project, selected_questionnaire, db_manager)
+        view_reports_page(selected_project,selected_questionnaire)
     else:
-        display_reports_page(selected_project, project_data)
+        display_reports_page(db_manager, selected_project, project_details)
+        
 
-def display_reports_page(selected_project, project_data):
-    """Modified to use project data from database"""
+def display_reports_page(db_manager, selected_project, project_details):
+    
     SIDEBAR_LOGO = "linde-text.png"
     MAINPAGE_LOGO = "linde_india_ltd_logo.jpeg"
 
@@ -236,12 +254,16 @@ def display_reports_page(selected_project, project_data):
     """, unsafe_allow_html=True)
     
     st.logo(sidebar_logo, icon_image=main_body_logo)
+    
+    """Display the main reports creation page."""
+    # Display project information
     st.sidebar.title("Project Information")
     st.sidebar.write(f"**Name:** '{selected_project}'")
-    st.sidebar.write(f"**Team Lead**: {project_data['team_lead']}")
-    st.sidebar.write(f"**Description**: {project_data['description']}")
+    st.sidebar.write(f"**Team Lead**: {project_details['team_lead']}")
+    st.sidebar.write(f"**Description**: {project_details['description']}")
     st.sidebar.divider()
 
+    # Get report name
     report_name = enter_name()
     st.session_state['report_name'] = report_name
 
@@ -249,33 +271,20 @@ def display_reports_page(selected_project, project_data):
         st.warning("Enter report name to Proceed!")
         return
 
-    selected_questionnaire = show_questionnaires(None)  # path parameter no longer needed
-    
+    # Show questionnaires and handle selection
+    selected_questionnaire = show_questionnaires()
+
     if selected_questionnaire is not None:
-        
         st.session_state.selected_questionnaire = selected_questionnaire
-        selected_docs = show_filtered_documents(selected_questionnaire['name'])
+        selected_docs = show_filtered_documents(selected_project)
+
         if selected_docs is not None and len(selected_docs) > 0:
-            
             if st.button("Create Report"):
-                if report_name:
-                    questionnaire_data = load_questionnaires(None)
-                    questionnaire_details = questionnaire_data[
-                        questionnaire_data['name'] == selected_questionnaire['name']
-                    ]
-                
-                    report_id = assign_documents_and_generate_report(
-                        selected_questionnaire['name'],
-                        selected_docs,
-                        report_name,
-                        selected_project,
-                        questionnaire_details
-                    )
-                    if report_id:
-                        st.success(f"Report created successfully with ID: {report_id}")
-                else:
-                    st.warning("Please enter a report name before generating the report.")
-        else:
-            st.info("Select Docs for Report Generation")
-    else:
-        st.info("Please select a questionnaire to proceed.")
+                create_report(
+                    db_manager,
+                    selected_project,
+                    selected_questionnaire['name'],
+                    report_name,
+                    selected_docs
+                )
+    return selected_questionnaire

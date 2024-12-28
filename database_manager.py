@@ -108,6 +108,18 @@ class DatabaseManager:
             )                       
         ''')
         
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS questionnaire_responses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_id INTEGER NOT NULL,
+                question_id TEXT NOT NULL,
+                question_text TEXT NOT NULL,
+                answer TEXT,
+                reference TEXT,
+                FOREIGN KEY (report_id) REFERENCES reports(id)
+            )               
+        ''')
+        
         conn.commit()
         conn.close()
 
@@ -517,7 +529,21 @@ class DatabaseManager:
             return []
         finally:
             conn.close()
-            
+
+    def get_all_reports(self):
+        """Fetch all reports from the database."""
+        conn = self._get_connection()
+        try:
+            query = """
+                SELECT id, project, questionnaire, name, num_docs
+                FROM reports
+            """
+            return pd.read_sql_query(query, conn)
+        except Exception as e:
+            st.error(f"Error retrieving reports: {e}")
+            return pd.DataFrame(columns=['id', 'project', 'questionnaire', 'name', 'num_docs'])
+        finally:
+            conn.close()            
                 
     def create_report(self, project, questionnaire, name, num_docs):
         """Create a new report entry in the database."""
@@ -537,6 +563,53 @@ class DatabaseManager:
             return None
         finally:
             conn.close()
+
+    def get_report_details(self, report_id):
+        """Fetch details of a specific report."""
+        conn = self._get_connection()
+        try:
+            query = """
+            SELECT project, questionnaire, name, num_docs
+            FROM reports
+            WHERE id = ?
+            """
+            df = pd.read_sql_query(query, conn, params=(report_id,))
+            return df.iloc[0] if not df.empty else None
+        except Exception as e:
+            st.error(f"Error retrieving report details: {e}")
+            return None
+        finally:
+            conn.close()
+
+    def get_assigned_documents(self, report_id):
+        """Get assigned documents for a report."""
+        conn = self._get_connection()
+        try:
+            query = """
+            SELECT content FROM report_documents
+            WHERE report_id = ? AND type = 'assigned'
+            """
+            result = pd.read_sql_query(query, conn, params=(report_id,))
+            return json.loads(result['content'][0]) if not result.empty else []
+        except Exception as e:
+            st.error(f"Error retrieving assigned documents: {e}")
+            return []
+        finally:
+            conn.close()
+
+    def get_included_documents(self, report_id):
+        """Get included documents for a report."""
+        conn = self._get_connection()
+        try:
+            query = """
+            SELECT content FROM report_documents
+            WHERE report_id = ? AND type = 'included'
+            """
+            result = pd.read_sql_query(query, conn, params=(report_id,))
+            return json.loads(result['content'][0]) if not result.empty else []
+        except Exception as e:
+            st.error(f"Error retrieving included documents: {e}")
+            return []
 
     def save_assigned_documents(self, report_id, doc_titles):
         """Save assigned documents for a report."""
@@ -615,26 +688,14 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
         try:
-            # First, create a table for questionnaire responses if it doesn't exist
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS questionnaire_responses (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    report_id INTEGER NOT NULL,
-                    question_id TEXT NOT NULL,
-                    answer TEXT,
-                    reference TEXT,
-                    FOREIGN KEY (report_id) REFERENCES reports(id)
-                )
-            ''')
-            
-            # Insert empty responses for each question
+            # Insert empty responses for each question with both question_id and question_text
             for _, row in questions_df.iterrows():
                 cursor.execute("""
                     INSERT INTO questionnaire_responses 
-                    (report_id, question_id, answer, reference)
-                    VALUES (?, ?, '', '')
-                """, (report_id, row['identifier']))
-            
+                    (report_id, question_id, question_text, answer, reference)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (report_id, row['identifier'], row['question'], '', ''))
+
             conn.commit()
             return questions_df
         except sqlite3.Error as e:
@@ -642,6 +703,7 @@ class DatabaseManager:
             return None
         finally:
             conn.close()
+
 
     def get_connection(self):
         """
