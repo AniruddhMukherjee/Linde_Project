@@ -188,7 +188,10 @@ def display_report_details_db(report, report_id, project_name, selected_project,
             gb_completion = GridOptionsBuilder.from_dataframe(completion_df)
             gb_completion.configure_default_column(editable=True, width=150)
             #gb_completion.configure_column("index", editable=False, width=100)
-            gb_completion.configure_column("question_text", editable=False, width=300)
+            gb_completion.configure_column("question_id", headerName="Index")
+            gb_completion.configure_column("question_id", editable=False, width=58)
+            gb_completion.configure_column("question_text", editable=False, width=230)
+            gb_completion.configure_column("answer", editable=False, width=300)
             gb_completion.configure_column("question_text", headerName="Questions")
             gridOptions_completion = gb_completion.build()
             

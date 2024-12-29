@@ -113,7 +113,7 @@ def add_new_questions(questions_df, selected_questionnaire, ad):
     with ad.popover("Add New Questions"):
         # Add file uploader for CSV
         
-        new_identifier = st.text_input("Enter question index/number:")
+        new_identifier = st.text_input("Enter question index/number seperated by '.':")
         new_question = st.text_area("Enter the new question:")
 
         if st.button("Add Question"):
