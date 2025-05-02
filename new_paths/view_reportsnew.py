@@ -1,11 +1,15 @@
 import streamlit as st
 import pandas as pd
-from st_aggrid import AgGrid, GridOptionsBuilder
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 import io
+import os 
+import base64
 import json
 from database_manager import db_manager
-from datetime import datetime
-    
+import sqlite3
+import new_paths.Documentsnew as documents_page
+
+
 def view_reports_page(selected_project,selected_questionnaire):
     """
     Display the main page for viewing reports of a selected project.
@@ -31,11 +35,19 @@ def view_reports_page(selected_project,selected_questionnaire):
     </style>
     """, unsafe_allow_html=True)
     
+    st.sidebar.markdown("""
+    <style>
+        [data-testid=stSidebar] {
+            background-color: #D2E1EB;
+        }
+    </style>
+    """, unsafe_allow_html=True)
     st.logo(sidebar_logo, icon_image=main_body_logo)
     
     # Get project details from database
     project_info = db_manager.get_project_details(selected_project)
     if project_info is not None:
+        
         st.sidebar.title("Project Information")
         st.sidebar.write(f"**Name:** {selected_project}")
         st.sidebar.write(f"**Team Lead:** {project_info['team_lead']}")
@@ -67,8 +79,7 @@ def view_reports_page(selected_project,selected_questionnaire):
             try:
                 display_report_details_db(report, report['id'], selected_project, selected_project, selected_questionnaire, db_manager)
             except Exception as e:
-                st.error(f"Error displaying report details: {str(e)}")
-                st.write("Please check the report data and try again.")
+                st.warning("Please select a document first")
     else:
         st.info("No reports found for this project.")
 
@@ -135,13 +146,7 @@ def get_report_documents(db_manager, report_id, doc_type):
 
 def display_report_details_db(report, report_id, project_name, selected_project, selected_questionnaire, db_manager):
     """
-    Display the details of a selected report from the database.
-
-    Args:
-    report (dict): The report information.
-    project_name (str): The name of the project.
-    selected_questionnaire (str): The name of the selected questionnaire.
-    db_manager (DatabaseManager): Instance of the database manager.
+    Display the details of a selected report from the database with clickable document references.
     """
     # Display report details in the sidebar
     st.sidebar.title("Report Details")
@@ -154,21 +159,21 @@ def display_report_details_db(report, report_id, project_name, selected_project,
     # Get and display included documents
     st.subheader("Included Documents")
     included_docs = get_report_documents(db_manager, report['id'], 'included')
+    documents_df = None
     if included_docs:
-        df = pd.DataFrame(included_docs)
+        documents_df = pd.DataFrame(included_docs)
+        st.dataframe(documents_df)
+        #gb = GridOptionsBuilder.from_dataframe(documents_df)
+        #gb.configure_default_column(editable=False, width=150)
+        #gb.configure_column("project", hide=True)
+        #gridOptions = gb.build()
         
-        gb = GridOptionsBuilder.from_dataframe(df)
-        gb.configure_default_column(editable=False, width=150)
-        gb.configure_column("project", hide = True)
-        #gb.configure_column("Summary", width=300)
-        gridOptions = gb.build()
-        
-        AgGrid(df,
-               gridOptions=gridOptions,
-               width='100%',
-               fit_columns_on_grid_load=True,
-               enable_enterprise_modules=False,
-               height=table_size_drd(df))
+        #AgGrid(documents_df,
+        #       gridOptions=gridOptions,
+        #       width='100%',
+        #       fit_columns_on_grid_load=True,
+        #       enable_enterprise_modules=False,
+        #       height=table_size_drd(documents_df))
     
     # Get and display questionnaire completion data
     st.subheader("Questionnaire Completion")
@@ -178,32 +183,47 @@ def display_report_details_db(report, report_id, project_name, selected_project,
         cursor.execute("""
             SELECT question_id, question_text, answer, reference
             FROM questionnaire_responses
-            WHERE report_id =?
+            WHERE report_id = ?
         """, (report_id,))
-        # Fixed SQL query with properly quoted column alias
         completion_data = cursor.fetchall()
         completion_df = pd.DataFrame(completion_data, columns=['question_id', 'question_text', 'answer', 'reference'])
         
+
         if not completion_df.empty:
-            gb_completion = GridOptionsBuilder.from_dataframe(completion_df)
-            gb_completion.configure_default_column(editable=True, width=150)
-            #gb_completion.configure_column("index", editable=False, width=100)
-            gb_completion.configure_column("question_id", headerName="Index")
-            gb_completion.configure_column("question_id", editable=False, width=58)
-            gb_completion.configure_column("question_text", editable=False, width=230)
-            gb_completion.configure_column("answer", editable=False, width=300)
-            gb_completion.configure_column("question_text", headerName="Questions")
-            gridOptions_completion = gb_completion.build()
+
+            completion_df = completion_df.rename(columns={
+                    'question_id': 'Index',
+                    'question_text': 'Question',
+                    'reference': 'Referenced Documents'
+            })
+            st.table(completion_df)
+
+            # Initialize session state for selected document
+            #if 'selected_doc' not in st.session_state:
+            #    st.session_state.selected_doc = None
+            #    
+            # Configure grid with custom cell renderer for reference column
+            #gb_completion = GridOptionsBuilder.from_dataframe(completion_df)
+            #gb_completion.configure_default_column(editable=False, width=150)
+            #gb_completion.configure_column("question_id", headerName="Index", width=58)
+            #gb_completion.configure_column("question_text", headerName="Questions", width=230)
+            #gb_completion.configure_column("answer", width=300)
+            #gridOptions_completion = gb_completion.build()
+            # Display the grid
+            #grid_response = AgGrid(
+            #    completion_df,
+            #    gridOptions=gridOptions_completion,
+            #    height=table_size_drd2(completion_df),
+            #    width='100%',
+            #    enable_enterprise_modules=False,
+            #    fit_columns_on_grid_load=True,
+            #    #enable_enterprise_modules=True,  # Enable enterprise features for custom cell renderer
+            #    allow_unsafe_jscode=True,  # Allow custom JavaScript
+            #)
             
-            AgGrid(completion_df,
-                   gridOptions=gridOptions_completion,
-                   height=table_size_drd2(completion_df),
-                   width='100%',
-                   fit_columns_on_grid_load=True,
-                   enable_enterprise_modules=False)
     finally:
         conn.close()
-
+    
     # Generate Excel report
     project_info = db_manager.get_project_details(project_name)
     excel_data = generate_excel_report(project_name, report, project_info, 
@@ -216,19 +236,136 @@ def display_report_details_db(report, report_id, project_name, selected_project,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     
-
     st.divider()
-    col1, col2 = st.columns([1,3])    
-        # Initialize session state for delete dialog if not exists
+    col1, col2 = st.columns([3,1])    
+    
+    with col1:
+        view_document(documents_df)
+
     if "delete_report_open" not in st.session_state:
         st.session_state.delete_report_open = False
         
-    with col1:
+    with col2:
         if st.button("Delete Report", key="delete1"):
             st.session_state.delete_report_open = True
             
     if st.session_state.delete_report_open:
         delete_report_dialog_db(report, selected_project, db_manager)
+
+def table_size(data):
+    """ Calculate table height based on number of rows. """
+    row_height = 35
+    header_height = 40
+    min_height = 50
+    max_height = 600
+    calculated_height = min(max(min_height, len(data) * row_height + header_height), max_height)
+    return calculated_height
+
+
+def view_document(documents_df):
+    view_document = st.session_state.get('view_document', False)
+
+    # Create a button to toggle the visibility of the content
+    if st.button('View Document', key="view_docs_button"):
+        view_document = not view_document
+        st.session_state['view_document'] = view_document
+
+    if view_document:
+        display_documents(documents_df)
+
+
+def display_documents(documents_df):
+    st.subheader("View Documents")
+    selected_project = st.session_state.get("selected_project", None)
+    conn = db_manager.get_connection() # get the connection
+    cursor = conn.cursor()
+
+    gb = GridOptionsBuilder.from_dataframe(documents_df)
+    gb.configure_column("fileID", editable=False)
+    gb.configure_default_column(editable=True)
+    gb.configure_selection(selection_mode="single", use_checkbox=True)
+    gb.configure_column("summary", width=700, hide=True)
+    gb.configure_selection(selection_mode="single", use_checkbox=True)
+    gb.configure_grid_options(
+        # Theme customization
+        rowStyle={'background-color': '#FFFFFF'},  # Default row color
+        # Custom CSS properties for selection
+        cssStyle={
+            '--ag-selected-row-background-color': '#b7e4ff',
+            '--ag-row-hover-color': '#e5f5ff',
+            '--ag-selected-row-background-color-hover': '#a1d9ff',
+        }
+    )
+
+    gridOptions = gb.build()
+
+    # Define custom CSS
+    custom_css = {
+        # Regular row hover
+        ".ag-row:hover": {
+            "background-color": "#e5f5ff !important"
+        },
+        ".ag-row-selected": {
+            "background-color": "#b7e4ff !important"
+        },
+        ".ag-row-selected:hover": {
+            "background-color": "#a1d9ff !important"
+        },
+        ".ag-checkbox-input-wrapper.ag-checked::after": {
+            "color": "#2196f3"  # Checkbox color when selected
+        }
+    }
+    
+    ag_response = AgGrid(
+        documents_df,
+        gridOptions=gridOptions,
+        update_mode=GridUpdateMode.MODEL_CHANGED,
+        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+        fit_columns_on_grid_load=True,
+        enable_enterprise_modules=False,
+        height=table_size(documents_df),
+        custom_css = custom_css
+    )
+
+    updated_data = ag_response['data']
+    selected_document = ag_response["selected_rows"]
+
+    if selected_document is not None and not selected_document.empty:
+        selected_doc = selected_document.iloc[0]
+
+    if len(selected_doc) != 1:
+        try:
+            cursor.execute(
+            "SELECT file_path FROM project_paths WHERE file_name = ?",
+            (  selected_project,)    
+            )
+            project_path_result = cursor.fetchone()
+
+            if project_path_result:
+                file_path = os.path.join(project_path_result[0], selected_doc['fileID'])
+                if selected_doc['fileID'].lower().endswith('.pdf'):
+                        try:
+                            with open(file_path, 'rb') as file:
+                                display_pdf(file.read())
+                        except FileNotFoundError:
+                            st.error(f"File not found: {file_path}")
+                else:
+                        st.warning(f"Preview not available for this file type: {os.path.splitext(file_path)[1]}")
+            else:
+                    st.error("Project path not found. Cannot view document.")
+        except sqlite3.Error as e:
+            st.error(f"Error retrieving project path: {e}")
+        finally:
+            conn.close()
+    else:
+        st.warning("Please select a Document")
+
+
+def display_pdf(file_content):
+    """Display a PDF file in the Streamlit app."""
+    base64_pdf = base64.b64encode(file_content).decode('utf-8')
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf"></iframe>'
+    st.markdown(pdf_display, unsafe_allow_html=True)
 
 
 def delete_report_dialog_db(report, project_name, db_manager):

@@ -2,3 +2,7 @@ streamlit
 streamlit-option-menu
 streamlit-aggrid
 xlsxwriter
+fitz
+accelerate
+PyMuPDF
+google-generativeai
