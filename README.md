@@ -1,15 +1,22 @@
-# Enterprise Document & Project Management System
-### Built for Linde Engineering · Dec 2024 – Apr 2025
+# Enterprise Document & Project Management System (AIS-Machine)
+### Automated Intelligence System · Built for Linde Engineering · Dec 2024 – Apr 2025
 
-An internal enterprise web application built during an internship at **Linde Engineering, Vadodara**, designed to streamline project documentation, data extraction, and reporting workflows across the organization.
+An enterprise-grade document intelligence platform built during an internship at **Linde Engineering, Vadodara**. AIS-Machine automates the extraction of answers from large document collections and generates structured, cited reports — replacing hours of manual document review with a single click.
 
 ---
 
-## Overview
+## What It Does
 
-Large engineering companies manage hundreds of documents, projects, and questionnaires across teams. This system replaced manual processes with a centralized, interactive platform — reducing document retrieval time and improving reporting efficiency by **40%** across 100+ enterprise documents.
+Engineers at large industrial companies deal with hundreds of documents per project. Finding specific answers across them is slow, error-prone, and manual.
 
-Built entirely in Python with a Streamlit frontend, the app integrates a PostgreSQL-backed database with an automated ML-based analytics pipeline.
+AIS-Machine solves this:
+
+1. **Create a project** — define the scope and assign categories
+2. **Upload documents** — attach relevant engineering documents to the project
+3. **Add a questionnaire** — define the questions that need to be answered
+4. **Generate a report** — the system reads all documents, answers every question, and cites exactly which document each answer was taken from
+
+The result is a fully automated, source-cited intelligence report — generated in seconds instead of hours.
 
 ---
 
@@ -17,20 +24,20 @@ Built entirely in Python with a Streamlit frontend, the app integrates a Postgre
 
 | Module | Description |
 |--------|-------------|
-| **Categories** | Organize and filter enterprise documents by category |
-| **Projects** | Track project status, metadata, and file paths |
-| **Docs** | Upload, manage, and retrieve enterprise documents |
-| **Questionnaire** | Structured data collection across business workflows |
-| **Reports** | Automated report generation with real-time data insights |
+| **Categories** | Organize projects and documents by domain or type |
+| **Projects** | Create and manage engineering projects |
+| **Docs** | Upload and attach documents to projects |
+| **Questionnaire** | Define questions to be answered from the document set |
+| **Reports** | Auto-generated reports with answers and source citations |
 
 ---
 
 ## Tech Stack
 
-- **Frontend** — Streamlit (multi-page app, ~2000 lines)
-- **Backend** — Python, SQLite / PostgreSQL
+- **Frontend** — Streamlit (multi-page, ~2000 lines)
+- **Backend** — Python, PostgreSQL, SQLite
+- **Document Processing** — Automated extraction and NLP pipeline
 - **Data** — Pandas, CSV pipelines
-- **Automation** — ML-based analytics and reporting
 - **API** — Real-time data processing and visualization
 
 ---
@@ -39,7 +46,7 @@ Built entirely in Python with a Streamlit frontend, the app integrates a Postgre
 
 - **40% improvement** in document processing efficiency across 100+ enterprise files
 - **25% increase** in user engagement via real-time API integration
-- Replaced manual document workflows with an automated extraction and reporting pipeline
+- Reduced manual document review time significantly across engineering teams
 
 ---
 
@@ -65,11 +72,11 @@ streamlit run app.py
 Linde_Project/
 ├── app.py                  # Main entry point, navigation
 ├── paths/
-│   ├── Categories.py       # Category management module
-│   ├── Projects.py         # Project tracking module
-│   ├── Documents.py        # Document upload/retrieval
-│   ├── Questionnaire.py    # Data collection module
-│   └── reports.py          # Automated reporting
+│   ├── Categories.py       # Category management
+│   ├── Projects.py         # Project tracking
+│   ├── Documents.py        # Document upload and management
+│   ├── Questionnaire.py    # Question definition module
+│   └── reports.py          # Automated report generation with citations
 ├── database_manager.py     # DB connection and queries
 ├── Data.csv                # Sample data
 ├── requirements.txt
@@ -80,7 +87,7 @@ Linde_Project/
 
 ## Context
 
-This project was developed as part of a **5-month internship at Linde Engineering** (Dec 2024 – Apr 2025), one of the world's largest industrial gas and engineering companies. The system was built to handle real enterprise data workflows and deployed for internal use.
+Built during a **5-month internship at Linde Engineering** (Dec 2024 – Apr 2025), one of the world's largest industrial gas and engineering companies. The system was developed to handle real enterprise document workflows and deployed for internal use across engineering teams.
 
 ---
 
